@@ -1,0 +1,75 @@
+# Curvas de Bézier cúbicas no formato Wavefront (cstype bezier / deg 3 / curv).
+# Cada segmento usa 4 pontos de controle e compartilha o último com o próximo (continuidade G(0)).
+mtllib curvas.mtl
+
+o arco
+v 100 700 0
+v 200 950 0
+v 400 950 0
+v 500 700 0
+usemtl vermelho
+cstype bezier
+deg 3
+curv 0.000000 1.000000 1 2 3 4
+parm u 0.000000 1.000000
+end
+
+o onda_g1
+v 50 400 0
+v 150 600 0
+v 250 600 0
+v 350 400 0
+v 450 200 0
+v 550 200 0
+v 650 400 0
+v 750 600 0
+v 850 600 0
+v 950 400 0
+usemtl azul
+cstype bezier
+deg 3
+curv 0.000000 3.000000 5 6 7 8 9 10 11 12 13 14
+parm u 0.000000 1.000000 2.000000 3.000000
+end
+
+o bico_g0
+v 550 700 0
+v 600 950 0
+v 700 950 0
+v 750 800 0
+v 700 650 0
+v 850 650 0
+v 950 800 0
+usemtl verde
+cstype bezier
+deg 3
+curv 0.000000 2.000000 15 16 17 18 19 20 21
+parm u 0.000000 1.000000 2.000000
+end
+
+o laco
+v 200 100 0
+v 600 350 0
+v 100 350 0
+v 500 100 0
+usemtl roxo
+cstype bezier
+deg 3
+curv 0.000000 1.000000 22 23 24 25
+parm u 0.000000 1.000000
+end
+
+o saindo_da_window
+v 700 100 0
+v 900 400 0
+v 1300 400 0
+v 1200 -200 0
+v 1100 -500 0
+v 800 -200 0
+v 600 250 0
+usemtl laranja
+cstype bezier
+deg 3
+curv 0.000000 2.000000 26 27 28 29 30 31 32
+parm u 0.000000 1.000000 2.000000
+end

@@ -6,6 +6,7 @@ from src.ObjGrafic import ObjGrafic
 from src.ObjDot import ObjDot
 from src.ObjLine import ObjLine
 from src.ObjWireframe import ObjWireframe
+from src.ObjCurva import ObjCurva
 
 COR_PADRAO = "#000000"
 
@@ -42,6 +43,13 @@ class DescritorOBJ:
             linhas.append("p " + " ".join(indices))
         elif tipo == "reta":
             linhas.append("l " + " ".join(indices))
+        elif tipo == "curva":
+            n_segmentos = (len(pontos) - 1) // 3
+            linhas.append("cstype bezier")
+            linhas.append("deg 3")
+            linhas.append(f"curv 0.000000 {n_segmentos:.6f} " + " ".join(indices))
+            linhas.append("parm u " + " ".join(f"{i:.6f}" for i in range(n_segmentos + 1)))
+            linhas.append("end")
         elif getattr(obj, "filled", False):
             linhas.append("f " + " ".join(indices))
         elif getattr(obj, "closed", True):
@@ -117,7 +125,9 @@ class DescritorOBJ:
         def criar(pontos, tipo_forcado=None, fechado=True, preenchido=False):
             nome = nome_unico(estado["nome"] or "objeto")
             cor = estado["cor"]
-            if tipo_forcado == "ponto" or len(pontos) == 1:
+            if tipo_forcado == "curva" and ObjCurva.quantidade_valida(len(pontos)):
+                objetos.append(ObjCurva(canvas, nome, cor, pontos))
+            elif tipo_forcado == "ponto" or len(pontos) == 1:
                 objetos.append(ObjDot(canvas, nome, cor, *pontos[0]))
             elif len(pontos) == 2:
                 objetos.append(ObjLine(canvas, nome, cor, *pontos[0], *pontos[1]))
@@ -160,6 +170,8 @@ class DescritorOBJ:
                     criar([vertices[i] for i in idx], fechado=fechado)
                 elif cmd == "f":
                     criar([vertices[indice(t)] for t in args], fechado=True, preenchido=True)
+                elif cmd == "curv":
+                    criar([vertices[indice(t)] for t in args[2:]], tipo_forcado="curva", fechado=False)
 
         fechar_bloco()
         return objetos

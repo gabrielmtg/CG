@@ -5,6 +5,7 @@ from tkinter import Tk, ttk, messagebox, colorchooser, filedialog
 from src.ObjDot import ObjDot
 from src.ObjLine import ObjLine
 from src.ObjWireframe import ObjWireframe
+from src.ObjCurva import ObjCurva
 from src.DisplayFile import DisplayFile
 from src.Viewport import Viewport
 from src.Window import Window
@@ -21,7 +22,7 @@ PASSO_ROTACAO = 15
 
 COR_PADRAO = "#000000"
 COR_RGB_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
-TIPOS_DISPONIVEIS = ["Ponto", "Reta", "Wireframe"]
+TIPOS_DISPONIVEIS = ["Ponto", "Reta", "Wireframe", "Curva (Bézier)"]
 
 REPEAT_DELAY_MS = 400
 REPEAT_INTERVAL_MS = 60
@@ -156,6 +157,11 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
                 if len(pontos) != 2:
                     raise ValueError("Reta requer exatamente 2 coordenadas.")
                 obj = ObjLine(display_file.canvas, nome, cor, *pontos[0], *pontos[1])
+            elif tipo == "Curva (Bézier)":
+                if not ObjCurva.quantidade_valida(len(pontos)):
+                    raise ValueError("Curva de Bézier requer 4 + 3k pontos (4, 7, 10, ...): "
+                                     "cada segmento usa 4 pontos e compartilha o último com o próximo.")
+                obj = ObjCurva(display_file.canvas, nome, cor, pontos)
             else:
                 preenchido = preenchido_var.get()
                 if preenchido and len(pontos) < 3:

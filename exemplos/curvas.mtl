@@ -1,0 +1,16 @@
+# Materiais das curvas
+
+newmtl vermelho
+Kd 0.900 0.100 0.100
+
+newmtl azul
+Kd 0.100 0.300 0.900
+
+newmtl verde
+Kd 0.100 0.700 0.200
+
+newmtl roxo
+Kd 0.550 0.100 0.750
+
+newmtl laranja
+Kd 1.000 0.550 0.000
