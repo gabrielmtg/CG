@@ -1,18 +1,21 @@
 import re
 import tkinter as tk
-from tkinter import Tk, ttk, messagebox, colorchooser
+from tkinter import Tk, ttk, messagebox, colorchooser, filedialog
 
 from src.ObjDot import ObjDot
 from src.ObjLine import ObjLine
 from src.ObjWireframe import ObjWireframe
 from src.DisplayFile import DisplayFile
 from src.Viewport import Viewport
+from src.Window import Window
 from src.Transform import Transform
+from src.DescritorOBJ import DescritorOBJ
 from src.parsing import parse_pontos
 
 CANVAS_SIZE = 1000
 PASSO_MOVIMENTO = 10
 FATOR_ZOOM = 1.2
+PASSO_ROTACAO = 15
 
 COR_PADRAO = "#000000"
 COR_RGB_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -178,8 +181,9 @@ def transformacao_dialog(root: Tk, display_file: DisplayFile, nome: str):
     # --- Translação ---
     aba_translacao = ttk.Frame(abas, padding=10)
     abas.add(aba_translacao, text="Translação")
-    dx_entry = campo_numerico(aba_translacao, "Dx:", 0)
-    dy_entry = campo_numerico(aba_translacao, "Dy:", 1)
+    ttk.Label(aba_translacao, text="Relativa à orientação da window").grid(row=0, column=0, columnspan=2, pady=(0, 5))
+    dx_entry = campo_numerico(aba_translacao, "Dx:", 1)
+    dy_entry = campo_numerico(aba_translacao, "Dy:", 2)
 
     # --- Escalonamento ---
     aba_escala = ttk.Frame(abas, padding=10)
@@ -228,7 +232,10 @@ def transformacao_dialog(root: Tk, display_file: DisplayFile, nome: str):
             if aba == 0:
                 dx, dy = ler_float(dx_entry, "Dx"), ler_float(dy_entry, "Dy")
                 descricao = f"Translação (dx={dx:g}, dy={dy:g})"
-                montar = lambda centro: Transform.matriz_translacao(dx, dy)
+                # (dx, dy) é dado no referencial do usuário (eixos da window);
+                # converte para WC para que "direita" seja a direita da tela
+                montar = lambda centro: Transform.matriz_translacao(
+                    *display_file.window.to_world_vector(dx, dy))
             elif aba == 1:
                 sx, sy = ler_float(sx_entry, "Sx"), ler_float(sy_entry, "Sy")
                 descricao = f"Escalonamento (sx={sx:g}, sy={sy:g})"
@@ -285,6 +292,56 @@ def transformacao_dialog(root: Tk, display_file: DisplayFile, nome: str):
     ttk.Button(botoes, text="OK", command=aplicar).pack(side="left", padx=5)
 
 
+def atualizar_lista_objetos(display_file: DisplayFile, combo_objetos: ttk.Combobox):
+    nomes = list(display_file.objects.keys())
+    combo_objetos['values'] = nomes
+    if nomes:
+        combo_objetos.set(nomes[0])
+    else:
+        combo_objetos.set("")
+    combo_objetos.event_generate("<<ComboboxSelected>>")
+
+
+def salvar_obj(display_file: DisplayFile):
+    caminho = filedialog.asksaveasfilename(
+        title="Salvar mundo", defaultextension=".obj",
+        filetypes=[("Wavefront OBJ", "*.obj"), ("Todos", "*.*")])
+    if not caminho:
+        return
+    try:
+        DescritorOBJ.salvar(caminho, display_file.objects.values())
+    except OSError as erro:
+        messagebox.showerror("Erro", f"Não foi possível salvar o arquivo:\n{erro}")
+
+
+def carregar_obj(display_file: DisplayFile, combo_objetos: ttk.Combobox):
+    caminho = filedialog.askopenfilename(
+        title="Carregar mundo", filetypes=[("Wavefront OBJ", "*.obj"), ("Todos", "*.*")])
+    if not caminho:
+        return
+    try:
+        objetos = DescritorOBJ.carregar(caminho, display_file.canvas)
+    except (OSError, ValueError, IndexError) as erro:
+        messagebox.showerror("Erro", f"Não foi possível ler o arquivo .obj:\n{erro}")
+        return
+
+    if display_file.objects:
+        substituir = messagebox.askyesno(
+            "Carregar mundo",
+            "Substituir os objetos atuais?\n(Não = adicionar ao mundo atual)")
+        if substituir:
+            display_file.clear()
+
+    for obj in objetos:
+        base, n = obj.get_name(), 1
+        while obj.get_name() in display_file.objects:
+            n += 1
+            obj.name = f"{base}_{n}"
+        display_file.add(obj)
+
+    atualizar_lista_objetos(display_file, combo_objetos)
+
+
 def bind_context_menu(root: Tk, display_file: DisplayFile, combo_objetos: ttk.Combobox):
     menu = tk.Menu(root, tearoff=0)
 
@@ -321,6 +378,14 @@ def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
     ttk.Button(novo_section, text="Transformar Objeto",
                command=lambda: transformacao_dialog(root, display_file, combo_objetos.get())).pack(side="top", pady=2)
 
+    arquivo_section = ttk.Frame(main_section, padding=10)
+    arquivo_section.pack(side="top")
+    ttk.Label(arquivo_section, text="Arquivo (Wavefront .obj)").grid(row=0, column=0, columnspan=2, pady=5)
+    ttk.Button(arquivo_section, text="Salvar .obj",
+               command=lambda: salvar_obj(display_file)).grid(row=1, column=0, padx=2)
+    ttk.Button(arquivo_section, text="Carregar .obj",
+               command=lambda: carregar_obj(display_file, combo_objetos)).grid(row=1, column=1, padx=2)
+
     camera_section = ttk.Frame(main_section, padding=10)
     camera_section.pack(side="top", pady=20)
     ttk.Label(camera_section, text="Controle da Câmera (Window)").grid(row=0, column=0, columnspan=3, pady=5)
@@ -348,6 +413,32 @@ def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
     btn_cam_dir = ttk.Button(camera_section, text="Ir Dir.")
     btn_cam_dir.grid(row=3, column=2)
     bind_hold(btn_cam_dir, lambda: display_file.pan(PASSO_MOVIMENTO, 0))
+
+    ttk.Label(camera_section, text="Rotação da Window").grid(row=5, column=0, columnspan=3, pady=(15, 5))
+
+    ttk.Label(camera_section, text="Ângulo:").grid(row=6, column=0, sticky="e")
+    angulo_entry = ttk.Entry(camera_section, width=6)
+    angulo_entry.insert(0, str(PASSO_ROTACAO))
+    angulo_entry.grid(row=6, column=1)
+    angulo_atual = ttk.Label(camera_section, text="atual: 0°")
+    angulo_atual.grid(row=6, column=2)
+
+    def rotacionar_window(sentido):
+        try:
+            graus = float(angulo_entry.get().strip())
+        except ValueError:
+            messagebox.showerror("Erro", "Ângulo de rotação inválido.")
+            return
+        display_file.rotate_window(sentido * graus)
+        angulo_atual.config(text=f"atual: {display_file.window.get_angle():g}°")
+
+    btn_rot_esq = ttk.Button(camera_section, text="↺ Anti-horário")
+    btn_rot_esq.grid(row=7, column=0, padx=2, pady=5)
+    bind_hold(btn_rot_esq, lambda: rotacionar_window(+1))
+
+    btn_rot_dir = ttk.Button(camera_section, text="↻ Horário")
+    btn_rot_dir.grid(row=7, column=2, padx=2, pady=5)
+    bind_hold(btn_rot_dir, lambda: rotacionar_window(-1))
 
     actions_section = ttk.Frame(main_section, padding=30)
     actions_section.pack(side="top")
@@ -432,13 +523,14 @@ def objetos_iniciais(display_file: DisplayFile, combo: ttk.Combobox):
 
 def main():
     root = tk.Tk()
-    root.title("Trabalho de CG - Entrega 1.2")
+    root.title("Trabalho de CG - SGI 2D")
 
     canva = tk.Canvas(root, height=CANVAS_SIZE, width=CANVAS_SIZE, bg="white")
     canva.pack(side="right", padx=10, pady=10)
 
-    viewport = Viewport(0, 0, CANVAS_SIZE, CANVAS_SIZE, 0, 0, CANVAS_SIZE, CANVAS_SIZE)
-    display_file = DisplayFile(canva, viewport)
+    window = Window(CANVAS_SIZE / 2, CANVAS_SIZE / 2, CANVAS_SIZE, CANVAS_SIZE)
+    viewport = Viewport(0, 0, CANVAS_SIZE, CANVAS_SIZE)
+    display_file = DisplayFile(canva, window, viewport)
 
     combo = functions_menu(root, display_file)
     bind_context_menu(root, display_file, combo)

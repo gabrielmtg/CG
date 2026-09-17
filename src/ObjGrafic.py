@@ -6,6 +6,13 @@ from src.Transform import Transform, Matriz
 
 
 class ObjGrafic(ABC):
+    """Objeto gráfico do mundo.
+
+    `points` guarda as coordenadas do mundo (WC) e nunca é alterado pela
+    navegação da window. `scn_points` é a cache da descrição do objeto no
+    Sistema de Coordenadas Normalizado (SCN), recalculada pelo display file
+    sempre que a window ou o objeto mudam; é ela que vai para a viewport.
+    """
 
     def __init__(self, canvas: tk.Canvas, name: str, color: str, tipo: str, points: List[Tuple[float, float]]):
         self.canvas = canvas
@@ -13,6 +20,7 @@ class ObjGrafic(ABC):
         self.color = color
         self.tipo = tipo
         self.points = [list(p) for p in points]
+        self.scn_points: List[Tuple[float, float]] = []
         self.ids_obj = []
 
     @abstractmethod
@@ -23,6 +31,9 @@ class ObjGrafic(ABC):
         for id_obj in self.ids_obj:
             self.canvas.delete(id_obj)
         self.ids_obj = []
+
+    def update_scn(self, matriz_scn: Matriz):
+        self.scn_points = Transform.aplicar_pontos(matriz_scn, self.get_points())
 
     def apply_transform(self, matriz: Matriz):
         Transform.aplicar(matriz, self)

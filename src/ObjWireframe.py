@@ -18,7 +18,7 @@ class ObjWireframe(ObjGrafic):
 
     def draw(self, transform):
         self.erase()
-        screen_points = [transform(x, y) for x, y in self.points]
+        screen_points = [transform(x, y) for x, y in self.scn_points]
         n = len(screen_points)
         last_segment = n if self.closed else n - 1
         for i in range(last_segment):

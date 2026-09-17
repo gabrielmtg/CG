@@ -15,7 +15,7 @@ class ObjDot(ObjGrafic):
 
     def draw(self, transform, radius: float = 3):
         self.erase()
-        x, y = self.points[0]
+        x, y = self.scn_points[0]
         sx, sy = transform(x, y)
         self.ids_obj.append(self.canvas.create_oval(
             sx - radius, sy - radius, sx + radius, sy + radius,

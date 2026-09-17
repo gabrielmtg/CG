@@ -1,0 +1,20 @@
+# Mundo básico: um ponto, uma reta e um triângulo (os objetos iniciais do SGI)
+mtllib mundo_basico.mtl
+
+o linha0
+v 100 100 0
+v 500 500 0
+usemtl vermelho
+l 1 2
+
+o ponto0
+v 550 550 0
+usemtl preto
+p 3
+
+o triangulo0
+v 700 200 0
+v 900 200 0
+v 800 400 0
+usemtl azul
+f 4 5 6

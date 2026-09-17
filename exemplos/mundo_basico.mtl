@@ -1,0 +1,10 @@
+# Cores RGB (componentes em [0, 1])
+
+newmtl vermelho
+Kd 1.0 0.0 0.0
+
+newmtl preto
+Kd 0.0 0.0 0.0
+
+newmtl azul
+Kd 0.0 0.0 1.0

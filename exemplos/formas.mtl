@@ -1,0 +1,28 @@
+# Materiais das formas
+
+newmtl vermelho
+Kd 0.900 0.100 0.100
+
+newmtl laranja
+Kd 1.000 0.550 0.000
+
+newmtl amarelo
+Kd 0.900 0.800 0.000
+
+newmtl verde
+Kd 0.100 0.700 0.200
+
+newmtl azul
+Kd 0.100 0.300 0.900
+
+newmtl roxo
+Kd 0.550 0.100 0.750
+
+newmtl ciano
+Kd 0.000 0.700 0.750
+
+newmtl rosa
+Kd 0.950 0.300 0.600
+
+newmtl preto
+Kd 0.000 0.000 0.000

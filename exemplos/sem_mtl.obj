@@ -1,0 +1,46 @@
+# Arquivo sem .mtl e com as "pegadinhas" do formato Wavefront:
+#   - sem mtllib: todos os objetos ficam com a cor padrão (preto)
+#   - usemtl apontando para material inexistente (também cai no padrão)
+#   - índices negativos (relativos ao último vértice lido)
+#   - polilinha fechada repetindo o primeiro índice no fim (vira wireframe fechado)
+#   - grupo "g" no lugar de "o"
+#   - bloco com vértices e sem elemento (1 vértice = ponto, 2 = reta, 3+ = wireframe)
+#   - nomes com espaço, linhas em branco e comentários no meio
+
+
+o Losango com indices negativos
+v 500 700 0
+v 600 600 0
+v 500 500 0
+v 400 600 0
+usemtl material_que_nao_existe
+f -4 -3 -2 -1
+
+# polilinha fechada "à mão": l a b c a
+o Triangulo fechado por l
+v 100 100 0
+v 300 100 0
+v 200 250 0
+l 5 6 7 5
+
+g Grupo aberto
+v 700 100 0
+v 750 200 0
+v 800 100 0
+v 850 200 0
+v 900 100 0
+l 8 9 10 11 12
+
+o Reta implicita
+v 100 900 0
+v 300 800 0
+
+o Ponto implicito
+v 900 900 0
+
+o Wireframe implicito
+v 650 800 0
+v 750 800 0
+v 800 900 0
+v 700 950 0
+v 600 900 0

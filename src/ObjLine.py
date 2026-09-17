@@ -15,7 +15,7 @@ class ObjLine(ObjGrafic):
 
     def draw(self, transform):
         self.erase()
-        (x0, y0), (x1, y1) = self.points
+        (x0, y0), (x1, y1) = self.scn_points
         sx0, sy0 = transform(x0, y0)
         sx1, sy1 = transform(x1, y1)
         self.ids_obj.append(self.canvas.create_line(
