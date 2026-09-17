@@ -2,6 +2,8 @@ from abc import ABC, abstractmethod
 import tkinter as tk
 from typing import List, Tuple
 
+from src.Transform import Transform, Matriz
+
 
 class ObjGrafic(ABC):
 
@@ -22,10 +24,11 @@ class ObjGrafic(ABC):
             self.canvas.delete(id_obj)
         self.ids_obj = []
 
+    def apply_transform(self, matriz: Matriz):
+        Transform.aplicar(matriz, self)
+
     def move(self, dx: float, dy: float):
-        for p in self.points:
-            p[0] += dx
-            p[1] += dy
+        self.apply_transform(Transform.matriz_translacao(dx, dy))
 
     def get_name(self) -> str:
         return self.name
@@ -38,3 +41,9 @@ class ObjGrafic(ABC):
 
     def get_points(self) -> List[Tuple[float, float]]:
         return [tuple(p) for p in self.points]
+
+    def set_points(self, points: List[Tuple[float, float]]):
+        self.points = [list(p) for p in points]
+
+    def get_center(self) -> Tuple[float, float]:
+        return Transform.centro_geometrico(self.points)

@@ -1,18 +1,21 @@
+import re
 import tkinter as tk
-from tkinter import Tk, ttk, messagebox
+from tkinter import Tk, ttk, messagebox, colorchooser
 
 from src.ObjDot import ObjDot
 from src.ObjLine import ObjLine
 from src.ObjWireframe import ObjWireframe
 from src.DisplayFile import DisplayFile
 from src.Viewport import Viewport
+from src.Transform import Transform
 from src.parsing import parse_pontos
 
 CANVAS_SIZE = 1000
 PASSO_MOVIMENTO = 10
 FATOR_ZOOM = 1.2
 
-CORES_DISPONIVEIS = ["black", "red", "blue", "green", "orange", "purple"]
+COR_PADRAO = "#000000"
+COR_RGB_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 TIPOS_DISPONIVEIS = ["Ponto", "Reta", "Wireframe"]
 
 REPEAT_DELAY_MS = 400
@@ -40,6 +43,21 @@ def bind_hold(widget, action, delay=REPEAT_DELAY_MS, interval=REPEAT_INTERVAL_MS
     widget.bind("<ButtonRelease-1>", stop)
 
 
+def campo_numerico(parent, texto, row, valor="0"):
+    ttk.Label(parent, text=texto).grid(row=row, column=0, sticky="w", padx=5, pady=3)
+    entry = ttk.Entry(parent, width=10)
+    entry.insert(0, valor)
+    entry.grid(row=row, column=1, padx=5, pady=3)
+    return entry
+
+
+def ler_float(entry, nome):
+    try:
+        return float(entry.get().strip())
+    except ValueError:
+        raise ValueError(f"Valor inválido para '{nome}'.")
+
+
 def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.Combobox):
     janela = tk.Toplevel(root)
     janela.title("Inserir Objeto")
@@ -47,27 +65,49 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
 
     ttk.Label(janela, text="Nome:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
     nome_entry = ttk.Entry(janela)
-    nome_entry.grid(row=0, column=1, padx=5, pady=5)
+    nome_entry.grid(row=0, column=1, padx=5, pady=5, sticky="w")
 
     ttk.Label(janela, text="Tipo:").grid(row=1, column=0, sticky="w", padx=5, pady=5)
     tipo_combo = ttk.Combobox(janela, state="readonly", values=TIPOS_DISPONIVEIS)
     tipo_combo.current(0)
-    tipo_combo.grid(row=1, column=1, padx=5, pady=5)
+    tipo_combo.grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
-    ttk.Label(janela, text="Cor:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
-    cor_combo = ttk.Combobox(janela, state="readonly", values=CORES_DISPONIVEIS)
-    cor_combo.current(0)
-    cor_combo.grid(row=2, column=1, padx=5, pady=5)
+    ttk.Label(janela, text="Cor (RGB):").grid(row=2, column=0, sticky="w", padx=5, pady=5)
+    cor_frame = ttk.Frame(janela)
+    cor_frame.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+
+    cor_entry = ttk.Entry(cor_frame, width=10)
+    cor_entry.insert(0, COR_PADRAO)
+    cor_entry.pack(side="left")
+
+    cor_preview = tk.Label(cor_frame, width=2, bg=COR_PADRAO, relief="sunken")
+    cor_preview.pack(side="left", padx=5)
+
+    def atualizar_preview(event=None):
+        cor = cor_entry.get().strip()
+        if COR_RGB_RE.match(cor):
+            cor_preview.config(bg=cor)
+
+    def escolher_cor():
+        _, cor_hex = colorchooser.askcolor(color=cor_entry.get().strip() or COR_PADRAO,
+                                           parent=janela, title="Escolher cor")
+        if cor_hex:
+            cor_entry.delete(0, "end")
+            cor_entry.insert(0, cor_hex.upper())
+            atualizar_preview()
+
+    cor_entry.bind("<KeyRelease>", atualizar_preview)
+    ttk.Button(cor_frame, text="Escolher...", command=escolher_cor).pack(side="left")
 
     ttk.Label(janela, text="Coordenadas:").grid(row=3, column=0, sticky="w", padx=5, pady=5)
     coords_entry = ttk.Entry(janela, width=30)
     coords_entry.insert(0, "(x1,y1),(x2,y2),...")
-    coords_entry.grid(row=3, column=1, padx=5, pady=5)
+    coords_entry.grid(row=3, column=1, padx=5, pady=5, sticky="w")
 
     def confirmar():
         nome = nome_entry.get().strip()
         tipo = tipo_combo.get()
-        cor = cor_combo.get()
+        cor = cor_entry.get().strip().upper()
         texto_coords = coords_entry.get().strip()
 
         if not nome:
@@ -76,6 +116,10 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
 
         if nome in display_file.objects:
             messagebox.showerror("Erro", f"Já existe um objeto chamado '{nome}'.")
+            return
+
+        if not COR_RGB_RE.match(cor):
+            messagebox.showerror("Erro", "Cor inválida. Use o formato RGB hexadecimal #RRGGBB.")
             return
 
         try:
@@ -113,6 +157,151 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
     ttk.Button(botoes, text="OK", command=confirmar).pack(side="left", padx=5)
 
 
+def transformacao_dialog(root: Tk, display_file: DisplayFile, nome: str):
+    obj = display_file.objects.get(nome)
+    if obj is None:
+        messagebox.showwarning("Aviso", "Selecione um objeto para transformar.")
+        return
+
+    janela = tk.Toplevel(root)
+    janela.title(f"Transformações 2D - {nome}")
+    janela.grab_set()
+
+    esquerda = ttk.Frame(janela, padding=10)
+    esquerda.grid(row=0, column=0, sticky="n")
+    direita = ttk.Frame(janela, padding=10)
+    direita.grid(row=0, column=1, sticky="n")
+
+    abas = ttk.Notebook(esquerda)
+    abas.pack(side="top")
+
+    # --- Translação ---
+    aba_translacao = ttk.Frame(abas, padding=10)
+    abas.add(aba_translacao, text="Translação")
+    dx_entry = campo_numerico(aba_translacao, "Dx:", 0)
+    dy_entry = campo_numerico(aba_translacao, "Dy:", 1)
+
+    # --- Escalonamento ---
+    aba_escala = ttk.Frame(abas, padding=10)
+    abas.add(aba_escala, text="Escalonamento")
+    ttk.Label(aba_escala, text="Em torno do centro do objeto").grid(row=0, column=0, columnspan=2, pady=(0, 5))
+    sx_entry = campo_numerico(aba_escala, "Sx:", 1, "1")
+    sy_entry = campo_numerico(aba_escala, "Sy:", 2, "1")
+
+    # --- Rotação ---
+    aba_rotacao = ttk.Frame(abas, padding=10)
+    abas.add(aba_rotacao, text="Rotação")
+
+    modo_rotacao = tk.StringVar(value="mundo")
+    opcoes = ttk.LabelFrame(aba_rotacao, text="Opções", padding=5)
+    opcoes.grid(row=0, column=0, columnspan=2, sticky="we", pady=(0, 5))
+    ttk.Radiobutton(opcoes, text="Em torno do centro do mundo", variable=modo_rotacao,
+                    value="mundo").pack(anchor="w")
+    ttk.Radiobutton(opcoes, text="Em torno do centro do objeto", variable=modo_rotacao,
+                    value="objeto").pack(anchor="w")
+    ttk.Radiobutton(opcoes, text="Em torno de um ponto qualquer", variable=modo_rotacao,
+                    value="ponto").pack(anchor="w")
+
+    angulo_entry = campo_numerico(aba_rotacao, "Ângulo (graus):", 1)
+    px_entry = campo_numerico(aba_rotacao, "Ponto X:", 2)
+    py_entry = campo_numerico(aba_rotacao, "Ponto Y:", 3)
+
+    def atualizar_campos_ponto(*args):
+        estado = "normal" if modo_rotacao.get() == "ponto" else "disabled"
+        px_entry.config(state=estado)
+        py_entry.config(state=estado)
+
+    modo_rotacao.trace_add("write", atualizar_campos_ponto)
+    atualizar_campos_ponto()
+
+    # --- Lista de transformações pendentes ---
+    ttk.Label(direita, text="Transformações:").pack(side="top", anchor="w")
+    lista = tk.Listbox(direita, width=42, height=12)
+    lista.pack(side="top", pady=5)
+
+    # Cada item é (descrição, função que monta a matriz dado o centro atual do objeto)
+    pendentes = []
+
+    def adicionar():
+        aba = abas.index(abas.select())
+        try:
+            if aba == 0:
+                dx, dy = ler_float(dx_entry, "Dx"), ler_float(dy_entry, "Dy")
+                descricao = f"Translação (dx={dx:g}, dy={dy:g})"
+                montar = lambda centro: Transform.matriz_translacao(dx, dy)
+            elif aba == 1:
+                sx, sy = ler_float(sx_entry, "Sx"), ler_float(sy_entry, "Sy")
+                descricao = f"Escalonamento (sx={sx:g}, sy={sy:g})"
+                montar = lambda centro: Transform.matriz_escala_natural(sx, sy, centro)
+            else:
+                angulo = ler_float(angulo_entry, "Ângulo")
+                modo = modo_rotacao.get()
+                if modo == "mundo":
+                    descricao = f"Rotação {angulo:g}° (centro do mundo)"
+                    montar = lambda centro: Transform.matriz_rotacao(angulo)
+                elif modo == "objeto":
+                    descricao = f"Rotação {angulo:g}° (centro do objeto)"
+                    montar = lambda centro: Transform.matriz_rotacao_ponto(angulo, centro)
+                else:
+                    px, py = ler_float(px_entry, "Ponto X"), ler_float(py_entry, "Ponto Y")
+                    descricao = f"Rotação {angulo:g}° (ponto ({px:g}, {py:g}))"
+                    montar = lambda centro: Transform.matriz_rotacao_ponto(angulo, (px, py))
+        except ValueError as erro:
+            messagebox.showerror("Erro", str(erro), parent=janela)
+            return
+
+        pendentes.append((descricao, montar))
+        lista.insert("end", descricao)
+
+    def remover():
+        selecao = lista.curselection()
+        if selecao:
+            indice = selecao[0]
+            lista.delete(indice)
+            pendentes.pop(indice)
+
+    def aplicar():
+        if pendentes:
+            # A matriz resultante só é calculada agora, concatenando todas as
+            # transformações na ordem em que foram adicionadas. O centro do
+            # objeto usado em cada passo é o centro após os passos anteriores.
+            matriz = Transform.identidade()
+            centro_original = obj.get_center()
+            for _, montar in pendentes:
+                centro_atual = Transform.aplicar_ponto(matriz, centro_original)
+                matriz = Transform.mult_matrix(matriz, montar(centro_atual))
+            display_file.transform_object(nome, matriz)
+        janela.destroy()
+
+    ttk.Button(esquerda, text="Adicionar", command=adicionar).pack(side="top", pady=10, fill="x")
+
+    botoes_lista = ttk.Frame(direita)
+    botoes_lista.pack(side="top", fill="x")
+    ttk.Button(botoes_lista, text="Remover", command=remover).pack(side="left")
+
+    botoes = ttk.Frame(janela)
+    botoes.grid(row=1, column=0, columnspan=2, pady=10)
+    ttk.Button(botoes, text="Cancelar", command=janela.destroy).pack(side="left", padx=5)
+    ttk.Button(botoes, text="OK", command=aplicar).pack(side="left", padx=5)
+
+
+def bind_context_menu(root: Tk, display_file: DisplayFile, combo_objetos: ttk.Combobox):
+    menu = tk.Menu(root, tearoff=0)
+
+    def abrir_menu(event):
+        nome = display_file.find_object_at(event.x, event.y)
+        if nome is None:
+            return
+        combo_objetos.set(nome)
+        combo_objetos.event_generate("<<ComboboxSelected>>")
+        menu.delete(0, "end")
+        menu.add_command(label=f"Transformar '{nome}'...",
+                         command=lambda: transformacao_dialog(root, display_file, nome))
+        menu.tk_popup(event.x_root, event.y_root)
+
+    display_file.canvas.bind("<Button-3>", abrir_menu)
+
+
 def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
     main_section = ttk.Frame(root, padding=20)
     main_section.pack(side="left", fill="y")
@@ -128,7 +317,9 @@ def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
     novo_section = ttk.Frame(main_section, padding=10)
     novo_section.pack(side="top")
     ttk.Button(novo_section, text="Novo Objeto",
-               command=lambda: novo_objeto_dialog(root, display_file, combo_objetos)).pack(side="top")
+               command=lambda: novo_objeto_dialog(root, display_file, combo_objetos)).pack(side="top", pady=2)
+    ttk.Button(novo_section, text="Transformar Objeto",
+               command=lambda: transformacao_dialog(root, display_file, combo_objetos.get())).pack(side="top", pady=2)
 
     camera_section = ttk.Frame(main_section, padding=10)
     camera_section.pack(side="top", pady=20)
@@ -227,9 +418,9 @@ def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
 
 
 def objetos_iniciais(display_file: DisplayFile, combo: ttk.Combobox):
-    display_file.add(ObjLine(display_file.canvas, "linha0", "red", 100, 100, 500, 500))
-    display_file.add(ObjDot(display_file.canvas, "ponto0", "black", 550, 550))
-    display_file.add(ObjWireframe(display_file.canvas, "triangulo0", "blue",
+    display_file.add(ObjLine(display_file.canvas, "linha0", "#FF0000", 100, 100, 500, 500))
+    display_file.add(ObjDot(display_file.canvas, "ponto0", "#000000", 550, 550))
+    display_file.add(ObjWireframe(display_file.canvas, "triangulo0", "#0000FF",
                                    [(700, 200), (900, 200), (800, 400)]))
 
     tags_disponiveis = list(display_file.objects.keys())
@@ -241,7 +432,7 @@ def objetos_iniciais(display_file: DisplayFile, combo: ttk.Combobox):
 
 def main():
     root = tk.Tk()
-    root.title("Trabalho de CG - Entrega 1")
+    root.title("Trabalho de CG - Entrega 1.2")
 
     canva = tk.Canvas(root, height=CANVAS_SIZE, width=CANVAS_SIZE, bg="white")
     canva.pack(side="right", padx=10, pady=10)
@@ -250,6 +441,7 @@ def main():
     display_file = DisplayFile(canva, viewport)
 
     combo = functions_menu(root, display_file)
+    bind_context_menu(root, display_file, combo)
     objetos_iniciais(display_file, combo)
 
     root.mainloop()

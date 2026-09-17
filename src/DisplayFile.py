@@ -2,6 +2,7 @@ import tkinter as tk
 from typing import Dict
 
 from src.ObjGrafic import ObjGrafic
+from src.Transform import Matriz
 from src.Viewport import Viewport
 
 
@@ -30,6 +31,19 @@ class DisplayFile:
         if obj is not None:
             obj.move(dx, dy)
             obj.draw(self.viewport.transform)
+
+    def transform_object(self, name: str, matriz: Matriz):
+        obj = self.objects.get(name)
+        if obj is not None:
+            obj.apply_transform(matriz)
+            obj.draw(self.viewport.transform)
+
+    def find_object_at(self, sx: float, sy: float, halo: int = 5):
+        ids = set(self.canvas.find_overlapping(sx - halo, sy - halo, sx + halo, sy + halo))
+        for obj in self.objects.values():
+            if ids.intersection(obj.ids_obj):
+                return obj.get_name()
+        return None
 
     def move_point(self, name: str, index: int, dx: float, dy: float):
         obj = self.objects.get(name)
