@@ -1,0 +1,164 @@
+# Objetos que cruzam as bordas da window inicial (0..1000), para testar o clipping.
+# Nada deve ser desenhado fora da moldura vermelha da viewport.
+mtllib clipping.mtl
+
+o reta_horizontal
+v -400 500 0
+v 1400 500 0
+usemtl vermelho
+l 1 2
+
+o reta_vertical
+v 500 -400 0
+v 500 1400 0
+usemtl vermelho
+l 3 4
+
+o diagonal_cantos
+v -300 -300 0
+v 1300 1300 0
+usemtl laranja
+l 5 6
+
+o diagonal_canto_sup_dir
+v 700 800 0
+v 1300 1400 0
+usemtl laranja
+l 7 8
+
+o reta_toda_fora
+v -200 1100 0
+v 1200 1100 0
+usemtl preto
+l 9 10
+
+o reta_toda_fora_2
+v 1100 -200 0
+v 1100 1200 0
+usemtl preto
+l 11 12
+
+o reta_toda_dentro
+v 100 900 0
+v 300 700 0
+usemtl preto
+l 13 14
+
+o quadrado_saindo
+v 800 100 0
+v 1200 100 0
+v 1200 400 0
+v 800 400 0
+usemtl azul
+l 15 16 17 18 15
+
+o triangulo_preenchido_saindo
+v -200 600 0
+v 300 950 0
+v 300 1200 0
+usemtl verde
+f 19 20 21
+
+o estrela_preenchida_no_canto
+v 1000 260 0
+v 935.344 88.992 0
+v 752.725 80.344 0
+v 895.384 -33.992 0
+v 847.176 -210.344 0
+v 1000 -110 0
+v 1152.824 -210.344 0
+v 1104.616 -33.992 0
+v 1247.275 80.344 0
+v 1064.656 88.992 0
+usemtl roxo
+f 22 23 24 25 26 27 28 29 30 31
+
+o hexagono_preenchido_fora
+v 1300 800 0
+v 1213.397 750 0
+v 1213.397 650 0
+v 1300 600 0
+v 1386.603 650 0
+v 1386.603 750 0
+usemtl cinza
+f 32 33 34 35 36 37
+
+o circulo_gigante
+v 500 1200 0
+v 408.632 1194.011 0
+v 318.827 1176.148 0
+v 232.122 1146.716 0
+v 150 1106.218 0
+v 73.867 1055.347 0
+v 5.025 994.975 0
+v -55.347 926.133 0
+v -106.218 850 0
+v -146.716 767.878 0
+v -176.148 681.173 0
+v -194.011 591.368 0
+v -200 500 0
+v -194.011 408.632 0
+v -176.148 318.827 0
+v -146.716 232.122 0
+v -106.218 150 0
+v -55.347 73.867 0
+v 5.025 5.025 0
+v 73.867 -55.347 0
+v 150 -106.218 0
+v 232.122 -146.716 0
+v 318.827 -176.148 0
+v 408.632 -194.011 0
+v 500 -200 0
+v 591.368 -194.011 0
+v 681.173 -176.148 0
+v 767.878 -146.716 0
+v 850 -106.218 0
+v 926.133 -55.347 0
+v 994.975 5.025 0
+v 1055.347 73.867 0
+v 1106.218 150 0
+v 1146.716 232.122 0
+v 1176.148 318.827 0
+v 1194.011 408.632 0
+v 1200 500 0
+v 1194.011 591.368 0
+v 1176.148 681.173 0
+v 1146.716 767.878 0
+v 1106.218 850 0
+v 1055.347 926.133 0
+v 994.975 994.975 0
+v 926.133 1055.347 0
+v 850 1106.218 0
+v 767.878 1146.716 0
+v 681.173 1176.148 0
+v 591.368 1194.011 0
+usemtl ciano
+l 38 39 40 41 42 43 44 45 46 47 48 49 50 51 52 53 54 55 56 57 58 59 60 61 62 63 64 65 66 67 68 69 70 71 72 73 74 75 76 77 78 79 80 81 82 83 84 85 38
+
+o zigue_zague_saindo
+v -100 1100 0
+v 50 850 0
+v 200 1100 0
+v 350 850 0
+v 500 1100 0
+v 650 850 0
+v 800 1100 0
+v 950 850 0
+v 1100 1100 0
+usemtl rosa
+l 86 87 88 89 90 91 92 93 94
+
+o ponto_dentro
+v 50 50 0
+usemtl preto
+p 95
+
+o ponto_na_borda
+v 1000 500 0
+usemtl preto
+p 96
+
+o ponto_fora
+v 1050 500 0
+usemtl preto
+p 97

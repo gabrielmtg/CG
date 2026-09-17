@@ -2,7 +2,7 @@
 #   - sem mtllib: todos os objetos ficam com a cor padrão (preto)
 #   - usemtl apontando para material inexistente (também cai no padrão)
 #   - índices negativos (relativos ao último vértice lido)
-#   - polilinha fechada repetindo o primeiro índice no fim (vira wireframe fechado)
+#   - "f" vira polígono preenchido; polilinha fechada repetindo o primeiro índice vira contorno (wireframe)
 #   - grupo "g" no lugar de "o"
 #   - bloco com vértices e sem elemento (1 vértice = ponto, 2 = reta, 3+ = wireframe)
 #   - nomes com espaço, linhas em branco e comentários no meio

@@ -1,6 +1,4 @@
 class Viewport:
-    """Transformada de viewport: leva coordenadas normalizadas (SCN, no
-    intervalo [-1, 1]) para coordenadas de tela (pixels do canvas)."""
 
     def __init__(self, vp_xmin: float, vp_ymin: float, vp_xmax: float, vp_ymax: float):
         self.vp_xmin = vp_xmin

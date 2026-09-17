@@ -1,7 +1,7 @@
 # Blender 2.91.0 OBJ File: 'cena.blend'
 # www.blender.org
 # Exportado com escala 100 e objetos deslocados para a área visível do SGI.
-# Arquivo 3D: o SGI ignora z, então o cubo vira a projeção de suas faces e o
+# Arquivo 3D: o SGI ignora z; as faces (f) viram polígonos preenchidos e o
 # círculo (exportado como arestas) vira várias retas Circle, Circle_2, ...
 mtllib blender_cubo.mtl
 o Cube

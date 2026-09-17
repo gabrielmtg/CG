@@ -1,4 +1,6 @@
 import tkinter as tk
+
+from src.Clipping import Clipping
 from src.ObjGrafic import ObjGrafic
 
 
@@ -13,9 +15,12 @@ class ObjLine(ObjGrafic):
         self.points[index][0] += dx
         self.points[index][1] += dy
 
-    def draw(self, transform):
+    def draw(self, clipping: Clipping, transform):
         self.erase()
-        (x0, y0), (x1, y1) = self.scn_points
+        segmento = clipping.reta(*self.scn_points)
+        if segmento is None:
+            return
+        (x0, y0), (x1, y1) = segmento
         sx0, sy0 = transform(x0, y0)
         sx1, sy1 = transform(x1, y1)
         self.ids_obj.append(self.canvas.create_line(

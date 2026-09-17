@@ -11,57 +11,43 @@ COR_PADRAO = "#000000"
 
 
 def cor_para_rgb(cor_hex: str) -> Tuple[float, float, float]:
-    """'#RRGGBB' -> (r, g, b) com componentes em [0, 1], como no .mtl."""
     cor_hex = cor_hex.lstrip("#")
     r, g, b = (int(cor_hex[i:i + 2], 16) for i in (0, 2, 4))
     return r / 255, g / 255, b / 255
 
 
 def rgb_para_cor(r: float, g: float, b: float) -> str:
-    """(r, g, b) em [0, 1] -> '#RRGGBB'."""
     def canal(v):
         return max(0, min(255, round(float(v) * 255)))
     return "#{:02X}{:02X}{:02X}".format(canal(r), canal(g), canal(b))
 
 
 class DescritorOBJ:
-    """Transcreve objetos gráficos de/para o formato Wavefront .obj.
 
-    Cada objeto vira um bloco `o <nome>` com seus vértices (`v x y 0`) e um
-    elemento com suas arestas: `p` para ponto, `l` para reta/polilinha aberta
-    e `f` para wireframe fechado. Os índices de vértice são globais ao
-    arquivo (base 1), como manda o formato.
-
-    A cor (RGB) de cada objeto vai em um arquivo .mtl de mesmo nome,
-    referenciado por `mtllib`, com um material por objeto (`newmtl`/`Kd`)
-    e selecionado no .obj por `usemtl`.
-    """
-
-    # ------------------------------------------------------------------
-    # Escrita
-    # ------------------------------------------------------------------
     @staticmethod
     def nome_material(obj: ObjGrafic) -> str:
         return "mat_" + obj.get_name().replace(" ", "_")
 
     @staticmethod
     def descrever(obj: ObjGrafic, offset: int) -> List[str]:
-        """Linhas .obj de um objeto. `offset` é o total de vértices já
-        escritos no arquivo antes deste objeto."""
         pontos = obj.get_points()
         linhas = [f"o {obj.get_name()}"]
         for x, y in pontos:
             linhas.append(f"v {x:.6f} {y:.6f} 0.000000")
         linhas.append(f"usemtl {DescritorOBJ.nome_material(obj)}")
 
-        indices = " ".join(str(offset + i) for i in range(1, len(pontos) + 1))
+        indices = [str(offset + i) for i in range(1, len(pontos) + 1)]
         tipo = obj.get_type()
         if tipo == "ponto":
-            linhas.append(f"p {indices}")
-        elif tipo == "reta" or not getattr(obj, "closed", True):
-            linhas.append(f"l {indices}")
+            linhas.append("p " + " ".join(indices))
+        elif tipo == "reta":
+            linhas.append("l " + " ".join(indices))
+        elif getattr(obj, "filled", False):
+            linhas.append("f " + " ".join(indices))
+        elif getattr(obj, "closed", True):
+            linhas.append("l " + " ".join(indices + indices[:1]))
         else:
-            linhas.append(f"f {indices}")
+            linhas.append("l " + " ".join(indices))
         return linhas
 
     @staticmethod
@@ -88,9 +74,6 @@ class DescritorOBJ:
         with open(caminho_mtl, "w", encoding="utf-8") as f:
             f.write("\n".join(linhas_mtl))
 
-    # ------------------------------------------------------------------
-    # Leitura
-    # ------------------------------------------------------------------
     @staticmethod
     def carregar_mtl(caminho: str) -> Dict[str, str]:
         materiais: Dict[str, str] = {}
@@ -131,7 +114,7 @@ class DescritorOBJ:
             i = int(token.split("/")[0])
             return len(vertices) + i if i < 0 else i - 1
 
-        def criar(pontos, tipo_forcado=None, fechado=True):
+        def criar(pontos, tipo_forcado=None, fechado=True, preenchido=False):
             nome = nome_unico(estado["nome"] or "objeto")
             cor = estado["cor"]
             if tipo_forcado == "ponto" or len(pontos) == 1:
@@ -139,12 +122,10 @@ class DescritorOBJ:
             elif len(pontos) == 2:
                 objetos.append(ObjLine(canvas, nome, cor, *pontos[0], *pontos[1]))
             else:
-                objetos.append(ObjWireframe(canvas, nome, cor, pontos, closed=fechado))
+                objetos.append(ObjWireframe(canvas, nome, cor, pontos, closed=fechado, filled=preenchido))
             estado["tem_elemento"] = True
 
         def fechar_bloco():
-            # Bloco com vértices mas sem elementos (`p`/`l`/`f`): interpreta
-            # os vértices em sequência como um único objeto.
             if not estado["tem_elemento"] and estado["vertices_bloco"]:
                 criar([vertices[i] for i in estado["vertices_bloco"]])
             estado["vertices_bloco"] = []
@@ -178,7 +159,7 @@ class DescritorOBJ:
                         idx = idx[:-1]
                     criar([vertices[i] for i in idx], fechado=fechado)
                 elif cmd == "f":
-                    criar([vertices[indice(t)] for t in args], fechado=True)
+                    criar([vertices[indice(t)] for t in args], fechado=True, preenchido=True)
 
         fechar_bloco()
         return objetos

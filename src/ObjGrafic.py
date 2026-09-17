@@ -2,17 +2,11 @@ from abc import ABC, abstractmethod
 import tkinter as tk
 from typing import List, Tuple
 
+from src.Clipping import Clipping
 from src.Transform import Transform, Matriz
 
 
 class ObjGrafic(ABC):
-    """Objeto gráfico do mundo.
-
-    `points` guarda as coordenadas do mundo (WC) e nunca é alterado pela
-    navegação da window. `scn_points` é a cache da descrição do objeto no
-    Sistema de Coordenadas Normalizado (SCN), recalculada pelo display file
-    sempre que a window ou o objeto mudam; é ela que vai para a viewport.
-    """
 
     def __init__(self, canvas: tk.Canvas, name: str, color: str, tipo: str, points: List[Tuple[float, float]]):
         self.canvas = canvas
@@ -24,7 +18,7 @@ class ObjGrafic(ABC):
         self.ids_obj = []
 
     @abstractmethod
-    def draw(self, transform):
+    def draw(self, clipping: Clipping, transform):
         pass
 
     def erase(self):

@@ -10,9 +10,11 @@ from src.Viewport import Viewport
 from src.Window import Window
 from src.Transform import Transform
 from src.DescritorOBJ import DescritorOBJ
+from src.Clipping import Clipping
 from src.parsing import parse_pontos
 
 CANVAS_SIZE = 1000
+MARGEM_VIEWPORT = 20
 PASSO_MOVIMENTO = 10
 FATOR_ZOOM = 1.2
 PASSO_ROTACAO = 15
@@ -107,6 +109,20 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
     coords_entry.insert(0, "(x1,y1),(x2,y2),...")
     coords_entry.grid(row=3, column=1, padx=5, pady=5, sticky="w")
 
+    preenchido_var = tk.BooleanVar(value=False)
+    preenchido_check = ttk.Checkbutton(janela, text="Polígono preenchido", variable=preenchido_var)
+    preenchido_check.grid(row=4, column=1, padx=5, pady=5, sticky="w")
+
+    def atualizar_preenchido(event=None):
+        if tipo_combo.get() == "Wireframe":
+            preenchido_check.config(state="normal")
+        else:
+            preenchido_var.set(False)
+            preenchido_check.config(state="disabled")
+
+    tipo_combo.bind("<<ComboboxSelected>>", atualizar_preenchido)
+    atualizar_preenchido()
+
     def confirmar():
         nome = nome_entry.get().strip()
         tipo = tipo_combo.get()
@@ -141,9 +157,12 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
                     raise ValueError("Reta requer exatamente 2 coordenadas.")
                 obj = ObjLine(display_file.canvas, nome, cor, *pontos[0], *pontos[1])
             else:
+                preenchido = preenchido_var.get()
+                if preenchido and len(pontos) < 3:
+                    raise ValueError("Polígono preenchido requer ao menos 3 coordenadas.")
                 if len(pontos) < 2:
                     raise ValueError("Wireframe requer ao menos 2 coordenadas.")
-                obj = ObjWireframe(display_file.canvas, nome, cor, pontos)
+                obj = ObjWireframe(display_file.canvas, nome, cor, pontos, filled=preenchido)
         except ValueError as erro:
             messagebox.showerror("Erro", str(erro))
             return
@@ -155,7 +174,7 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
         janela.destroy()
 
     botoes = ttk.Frame(janela)
-    botoes.grid(row=4, column=0, columnspan=2, pady=10)
+    botoes.grid(row=5, column=0, columnspan=2, pady=10)
     ttk.Button(botoes, text="Cancelar", command=janela.destroy).pack(side="left", padx=5)
     ttk.Button(botoes, text="OK", command=confirmar).pack(side="left", padx=5)
 
@@ -178,21 +197,18 @@ def transformacao_dialog(root: Tk, display_file: DisplayFile, nome: str):
     abas = ttk.Notebook(esquerda)
     abas.pack(side="top")
 
-    # --- Translação ---
     aba_translacao = ttk.Frame(abas, padding=10)
     abas.add(aba_translacao, text="Translação")
     ttk.Label(aba_translacao, text="Relativa à orientação da window").grid(row=0, column=0, columnspan=2, pady=(0, 5))
     dx_entry = campo_numerico(aba_translacao, "Dx:", 1)
     dy_entry = campo_numerico(aba_translacao, "Dy:", 2)
 
-    # --- Escalonamento ---
     aba_escala = ttk.Frame(abas, padding=10)
     abas.add(aba_escala, text="Escalonamento")
     ttk.Label(aba_escala, text="Em torno do centro do objeto").grid(row=0, column=0, columnspan=2, pady=(0, 5))
     sx_entry = campo_numerico(aba_escala, "Sx:", 1, "1")
     sy_entry = campo_numerico(aba_escala, "Sy:", 2, "1")
 
-    # --- Rotação ---
     aba_rotacao = ttk.Frame(abas, padding=10)
     abas.add(aba_rotacao, text="Rotação")
 
@@ -218,12 +234,10 @@ def transformacao_dialog(root: Tk, display_file: DisplayFile, nome: str):
     modo_rotacao.trace_add("write", atualizar_campos_ponto)
     atualizar_campos_ponto()
 
-    # --- Lista de transformações pendentes ---
     ttk.Label(direita, text="Transformações:").pack(side="top", anchor="w")
     lista = tk.Listbox(direita, width=42, height=12)
     lista.pack(side="top", pady=5)
 
-    # Cada item é (descrição, função que monta a matriz dado o centro atual do objeto)
     pendentes = []
 
     def adicionar():
@@ -232,8 +246,6 @@ def transformacao_dialog(root: Tk, display_file: DisplayFile, nome: str):
             if aba == 0:
                 dx, dy = ler_float(dx_entry, "Dx"), ler_float(dy_entry, "Dy")
                 descricao = f"Translação (dx={dx:g}, dy={dy:g})"
-                # (dx, dy) é dado no referencial do usuário (eixos da window);
-                # converte para WC para que "direita" seja a direita da tela
                 montar = lambda centro: Transform.matriz_translacao(
                     *display_file.window.to_world_vector(dx, dy))
             elif aba == 1:
@@ -269,9 +281,6 @@ def transformacao_dialog(root: Tk, display_file: DisplayFile, nome: str):
 
     def aplicar():
         if pendentes:
-            # A matriz resultante só é calculada agora, concatenando todas as
-            # transformações na ordem em que foram adicionadas. O centro do
-            # objeto usado em cada passo é o centro após os passos anteriores.
             matriz = Transform.identidade()
             centro_original = obj.get_center()
             for _, montar in pendentes:
@@ -386,8 +395,16 @@ def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
     ttk.Button(arquivo_section, text="Carregar .obj",
                command=lambda: carregar_obj(display_file, combo_objetos)).grid(row=1, column=1, padx=2)
 
+    clip_section = ttk.Frame(main_section, padding=10)
+    clip_section.pack(side="top")
+    ttk.Label(clip_section, text="Clipagem de Retas").pack(side="top")
+    algoritmo_reta = tk.StringVar(value=display_file.clipping.algoritmo_reta)
+    for algoritmo in Clipping.ALGORITMOS_RETA:
+        ttk.Radiobutton(clip_section, text=algoritmo, variable=algoritmo_reta, value=algoritmo,
+                        command=lambda: display_file.set_algoritmo_reta(algoritmo_reta.get())).pack(anchor="w")
+
     camera_section = ttk.Frame(main_section, padding=10)
-    camera_section.pack(side="top", pady=20)
+    camera_section.pack(side="top", pady=5)
     ttk.Label(camera_section, text="Controle da Câmera (Window)").grid(row=0, column=0, columnspan=3, pady=5)
 
     btn_zoom_in = ttk.Button(camera_section, text="Zoom In (+)")
@@ -440,7 +457,7 @@ def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
     btn_rot_dir.grid(row=7, column=2, padx=2, pady=5)
     bind_hold(btn_rot_dir, lambda: rotacionar_window(-1))
 
-    actions_section = ttk.Frame(main_section, padding=30)
+    actions_section = ttk.Frame(main_section, padding=10)
     actions_section.pack(side="top")
     ttk.Label(actions_section, text="Mover Objeto").grid(row=0, column=1)
 
@@ -528,8 +545,13 @@ def main():
     canva = tk.Canvas(root, height=CANVAS_SIZE, width=CANVAS_SIZE, bg="white")
     canva.pack(side="right", padx=10, pady=10)
 
+    canva.create_rectangle(MARGEM_VIEWPORT, MARGEM_VIEWPORT,
+                           CANVAS_SIZE - MARGEM_VIEWPORT, CANVAS_SIZE - MARGEM_VIEWPORT,
+                           outline="red", width=2)
+
     window = Window(CANVAS_SIZE / 2, CANVAS_SIZE / 2, CANVAS_SIZE, CANVAS_SIZE)
-    viewport = Viewport(0, 0, CANVAS_SIZE, CANVAS_SIZE)
+    viewport = Viewport(MARGEM_VIEWPORT, MARGEM_VIEWPORT,
+                        CANVAS_SIZE - MARGEM_VIEWPORT, CANVAS_SIZE - MARGEM_VIEWPORT)
     display_file = DisplayFile(canva, window, viewport)
 
     combo = functions_menu(root, display_file)
