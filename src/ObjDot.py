@@ -21,8 +21,8 @@ class ObjDot(ObjGrafic):
 
     def draw(self, clipping: Clipping, transform, radius: float = 3):
         self.erase()
-        ponto = clipping.ponto(self.scn_points[0])
-        if ponto is None:
+        ponto = self.scn_points[0]
+        if ponto is None or clipping.ponto(ponto) is None:
             return
         sx, sy = transform(*ponto)
         self.ids_obj.append(self.canvas.create_oval(

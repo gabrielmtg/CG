@@ -1,23 +1,19 @@
-import math
 import tkinter as tk
-from typing import List, Tuple
+from typing import List, Optional, Sequence, Tuple
 
-from src.Clipping import Clipping
-from src.ObjGrafic import ObjGrafic
+from src.ObjCurvaParametrica import ObjCurvaParametrica
 from src.Transform import Transform
 
-Ponto = Tuple[float, float]
+Ponto = Tuple[float, float, float]
 
 
-class ObjCurva(ObjGrafic):
+class ObjCurva(ObjCurvaParametrica):
     MATRIZ_BEZIER = [[-1.0,  3.0, -3.0, 1.0],
                      [3.0, -6.0,  3.0, 0.0],
                      [-3.0,  3.0,  0.0, 0.0],
                      [1.0,  0.0,  0.0, 0.0]]
-    PASSOS_MIN = 10
-    PASSOS_MAX = 300
 
-    def __init__(self, canvas: tk.Canvas, name: str, color: str, points: List[Ponto]):
+    def __init__(self, canvas: tk.Canvas, name: str, color: str, points: Sequence[Sequence[float]]):
         super().__init__(canvas, name, color, "curva", points)
 
     @staticmethod
@@ -25,34 +21,26 @@ class ObjCurva(ObjGrafic):
         return n >= 4 and (n - 1) % 3 == 0
 
     @staticmethod
-    def segmentos(controle: List[Ponto]) -> List[List[Ponto]]:
-        return [controle[i:i + 4] for i in range(0, len(controle) - 3, 3)]
+    def segmentos(controle: Sequence) -> List[list]:
+        return [list(controle[i:i + 4]) for i in range(0, len(controle) - 3, 3)]
 
     @staticmethod
     def blending(t: float) -> List[float]:
         return Transform.mult_matrix([[t ** 3, t ** 2, t, 1.0]], ObjCurva.MATRIZ_BEZIER)[0]
 
     @staticmethod
-    def ponto_bezier(t: float, geometria: List[Ponto]) -> Ponto:
+    def ponto_bezier(t: float, geometria: Sequence[Sequence[float]]) -> Tuple[float, ...]:
         b = ObjCurva.blending(t)
-        x = sum(b[j] * geometria[j][0] for j in range(4))
-        y = sum(b[j] * geometria[j][1] for j in range(4))
-        return x, y
+        return tuple(sum(b[j] * geometria[j][k] for j in range(4)) for k in range(len(geometria[0])))
 
-    @staticmethod
-    def passos(geometria: List[Ponto]) -> int:
-        comprimento = sum(math.dist(geometria[i], geometria[i + 1]) for i in range(3))
-        return max(ObjCurva.PASSOS_MIN, min(ObjCurva.PASSOS_MAX, int(comprimento * 100)))
-
-    def gerar_pontos(self, controle: List[Ponto]) -> List[Ponto]:
+    def gerar_pontos(self, controle: Sequence[Sequence[float]],
+                     projetado: Optional[Sequence] = None) -> List[Ponto]:
+        controle = [Transform.como_3d(p) for p in controle]
+        segmentos_projetados = self.segmentos(projetado if projetado is not None else controle)
         curva: List[Ponto] = []
-        for geometria in self.segmentos(controle):
-            n = self.passos(geometria)
+        for geometria, geometria_projetada in zip(self.segmentos(controle), segmentos_projetados):
+            n = self.passos(geometria_projetada)
             inicio = 1 if curva else 0
             for i in range(inicio, n + 1):
                 curva.append(self.ponto_bezier(i / n, geometria))
         return curva
-
-    def draw(self, clipping: Clipping, transform):
-        self.erase()
-        self.desenhar_curva_recortada(self.gerar_pontos(self.scn_points), clipping, transform)

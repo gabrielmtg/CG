@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import tkinter as tk
-from typing import List, Sequence, Tuple
+from typing import Callable, List, Optional, Sequence, Tuple
 
 from src.Clipping import Clipping
 from src.Ponto3D import Ponto3D
@@ -16,7 +16,7 @@ class ObjGrafic(ABC):
         self.color = color
         self.tipo = tipo
         self.points: List[Ponto3D] = [Ponto3D(*Transform.como_3d(p)) for p in points]
-        self.scn_points: List[Tuple[float, float]] = []
+        self.scn_points: List[Optional[Tuple[float, float]]] = []
         self.ids_obj = []
 
     @abstractmethod
@@ -28,11 +28,8 @@ class ObjGrafic(ABC):
             self.canvas.delete(id_obj)
         self.ids_obj = []
 
-    def update_scn(self, matriz_scn: Matriz):
-        self.scn_points = []
-        for p in self.points:
-            x, y, _ = Transform.aplicar_ponto(matriz_scn, p.coords())
-            self.scn_points.append((x, y))
+    def update_scn(self, projetar: Callable[[Sequence[float]], Optional[Tuple[float, float]]]):
+        self.scn_points = [projetar(p.coords()) for p in self.points]
 
     def apply_transform(self, matriz: Matriz):
         Transform.aplicar(matriz, self)
@@ -76,16 +73,21 @@ class ObjGrafic(ABC):
         if len(pontos) < 2:
             return
         anterior = pontos[0]
-        anterior_dentro = clipping.ponto(anterior) is not None
+        anterior_dentro = anterior is not None and clipping.ponto(anterior) is not None
         for atual in pontos[1:]:
-            atual_dentro = clipping.ponto(atual) is not None
+            atual_dentro = atual is not None and clipping.ponto(atual) is not None
             if anterior_dentro and atual_dentro:
-                segmento = (anterior, atual)
+                self.desenhar_segmento((anterior, atual), transform)
             else:
-                segmento = clipping.reta(anterior, atual)
-            if segmento is not None:
-                self.desenhar_segmento(segmento, transform)
+                self.desenhar_segmento_recortado(anterior, atual, clipping, transform)
             anterior, anterior_dentro = atual, atual_dentro
+
+    def desenhar_segmento_recortado(self, a, b, clipping: Clipping, transform):
+        if a is None or b is None:
+            return
+        segmento = clipping.reta(a, b)
+        if segmento is not None:
+            self.desenhar_segmento(segmento, transform)
 
     def desenhar_segmento(self, segmento, transform):
         (x0, y0), (x1, y1) = segmento

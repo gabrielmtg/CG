@@ -21,6 +21,8 @@ class ObjWireframe(ObjGrafic):
             self._draw_edges(clipping, transform)
 
     def _draw_filled(self, clipping: Clipping, transform):
+        if any(p is None for p in self.scn_points):
+            return
         poligono = clipping.poligono(self.scn_points)
         if len(poligono) < 3:
             return
@@ -33,6 +35,5 @@ class ObjWireframe(ObjGrafic):
         n = len(self.scn_points)
         last_segment = n if self.closed else n - 1
         for i in range(last_segment):
-            segmento = clipping.reta(self.scn_points[i], self.scn_points[(i + 1) % n])
-            if segmento is not None:
-                self.desenhar_segmento(segmento, transform)
+            self.desenhar_segmento_recortado(self.scn_points[i], self.scn_points[(i + 1) % n],
+                                             clipping, transform)

@@ -1,0 +1,16 @@
+# Materiais de rua.obj
+
+newmtl azul
+Kd 0.150 0.350 0.900
+
+newmtl verde
+Kd 0.100 0.600 0.200
+
+newmtl roxo
+Kd 0.550 0.100 0.750
+
+newmtl vermelho
+Kd 0.850 0.100 0.100
+
+newmtl cinza
+Kd 0.400 0.400 0.400

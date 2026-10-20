@@ -112,6 +112,19 @@ class Transform:
         )
 
     @staticmethod
+    def matriz_perspectiva(d: float) -> Matriz:
+        return [[1.0, 0.0, 0.0, 0.0],
+                [0.0, 1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0, -1.0 / d],
+                [0.0, 0.0, 0.0, 0.0]]
+
+    @staticmethod
+    def aplicar_ponto_homogeneo(matriz: Matriz, ponto: Sequence[float]) -> Ponto:
+        x, y, z = Transform.como_3d(ponto)
+        X, Y, Z, W = Transform.mult_matrix([[x, y, z, 1.0]], matriz)[0]
+        return X / W, Y / W, Z / W
+
+    @staticmethod
     def como_3d(p: Sequence[float]) -> Ponto:
         return (float(p[0]), float(p[1]), float(p[2]) if len(p) > 2 else 0.0)
 

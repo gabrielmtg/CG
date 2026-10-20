@@ -13,6 +13,4 @@ class ObjLine(ObjGrafic):
 
     def draw(self, clipping: Clipping, transform):
         self.erase()
-        segmento = clipping.reta(*self.scn_points)
-        if segmento is not None:
-            self.desenhar_segmento(segmento, transform)
+        self.desenhar_segmento_recortado(*self.scn_points, clipping, transform)

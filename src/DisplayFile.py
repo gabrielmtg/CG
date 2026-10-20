@@ -19,12 +19,12 @@ class DisplayFile:
         self.observadores_window = []
 
     def gerar_descricao_scn(self):
-        matriz_scn = self.window.matriz_scn()
+        projetar = self.window.projetor()
         for obj in self.objects.values():
-            obj.update_scn(matriz_scn)
+            obj.update_scn(projetar)
 
     def _desenhar(self, obj: ObjGrafic):
-        obj.update_scn(self.window.matriz_scn())
+        obj.update_scn(self.window.projetor())
         obj.draw(self.clipping, self.viewport.transform)
 
     def redraw_all(self):
@@ -107,6 +107,14 @@ class DisplayFile:
     def orbitar_window(self, graus_x: float, graus_y: float):
         self.window.rotate_x(graus_x)
         self.window.rotate_y(graus_y)
+        self._window_mudou()
+
+    def set_projecao(self, projecao: str):
+        self.window.set_projecao(projecao)
+        self._window_mudou()
+
+    def set_distancia_cop(self, d: float):
+        self.window.set_distancia_cop(d)
         self._window_mudou()
 
     def resetar_window(self):

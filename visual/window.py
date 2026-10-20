@@ -1,3 +1,4 @@
+import math
 import re
 import tkinter as tk
 from tkinter import Tk, ttk, messagebox, colorchooser, filedialog
@@ -22,6 +23,9 @@ PASSO_MOVIMENTO = 10
 FATOR_ZOOM = 1.2
 PASSO_ROTACAO = 15
 GRAUS_POR_PIXEL = 0.5
+DISTANCIA_COP_MIN = 150
+DISTANCIA_COP_MAX = 10000
+DISTANCIAS_COP = (("Grande angular", 250), ("Normal", 1000), ("Teleobjetiva", 5000))
 
 COR_PADRAO = "#000000"
 COR_RGB_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
@@ -495,13 +499,50 @@ def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
     ttk.Button(arquivo_section, text="Carregar .obj",
                command=lambda: carregar_obj(display_file, combo_objetos)).grid(row=1, column=1, padx=2)
 
-    clip_section = ttk.Frame(main_section, padding=10)
-    clip_section.pack(side="top")
+    opcoes_section = ttk.Frame(main_section, padding=10)
+    opcoes_section.pack(side="top")
+
+    clip_section = ttk.Frame(opcoes_section)
+    clip_section.grid(row=0, column=0, sticky="n", padx=(0, 15))
     ttk.Label(clip_section, text="Clipagem de Retas").pack(side="top")
     algoritmo_reta = tk.StringVar(value=display_file.clipping.algoritmo_reta)
     for algoritmo in Clipping.ALGORITMOS_RETA:
         ttk.Radiobutton(clip_section, text=algoritmo, variable=algoritmo_reta, value=algoritmo,
                         command=lambda: display_file.set_algoritmo_reta(algoritmo_reta.get())).pack(anchor="w")
+
+    projecao_section = ttk.Frame(opcoes_section)
+    projecao_section.grid(row=0, column=1, sticky="n")
+    ttk.Label(projecao_section, text="Projeção").pack(side="top")
+    projecao = tk.StringVar(value=display_file.window.projecao)
+    for opcao in Window.PROJECOES:
+        ttk.Radiobutton(projecao_section, text=opcao, variable=projecao, value=opcao,
+                        command=lambda: display_file.set_projecao(projecao.get())).pack(anchor="w")
+
+    cop_section = ttk.Frame(main_section, padding=(10, 0, 10, 10))
+    cop_section.pack(side="top")
+    ttk.Label(cop_section, text="Distância do COP ao plano de projeção (d)").grid(row=0, column=0, columnspan=3)
+    log_min, log_max = math.log10(DISTANCIA_COP_MIN), math.log10(DISTANCIA_COP_MAX)
+    cop_escala = ttk.Scale(cop_section, from_=log_min, to=log_max, orient="horizontal", length=260,
+                           value=math.log10(display_file.window.distancia_cop),
+                           command=lambda valor: display_file.set_distancia_cop(round(10 ** float(valor))))
+    cop_escala.grid(row=1, column=0, columnspan=3, pady=2)
+    for coluna, (rotulo, distancia) in enumerate(DISTANCIAS_COP):
+        ttk.Button(cop_section, text=rotulo,
+                   command=lambda d=distancia: cop_escala.set(math.log10(d))).grid(row=2, column=coluna, padx=1)
+    info_cop = ttk.Label(cop_section, foreground="gray")
+    info_cop.grid(row=3, column=0, columnspan=3, pady=(2, 0))
+
+    def atualizar_info_cop():
+        window = display_file.window
+        info_cop.config(text=f"d = {window.distancia_cop:g}  ·  campo de visão {window.campo_de_visao():.0f}°")
+        perspectiva = window.projecao == Window.PERSPECTIVA
+        cop_escala.state(["!disabled"] if perspectiva else ["disabled"])
+        for filho in cop_section.winfo_children():
+            if isinstance(filho, ttk.Button):
+                filho.state(["!disabled"] if perspectiva else ["disabled"])
+
+    display_file.observadores_window.append(atualizar_info_cop)
+    atualizar_info_cop()
 
     camera_section = ttk.Frame(main_section, padding=10)
     camera_section.pack(side="top", pady=5)
@@ -567,7 +608,10 @@ def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
     def atualizar_info_window():
         vpn = display_file.window.get_vpn()
         vup = display_file.window.get_vup()
-        info_window.config(text="VPN ({:.2f}, {:.2f}, {:.2f})\nVUP ({:.2f}, {:.2f}, {:.2f})".format(*vpn, *vup))
+        texto = "VPN ({:.2f}, {:.2f}, {:.2f})\nVUP ({:.2f}, {:.2f}, {:.2f})".format(*vpn, *vup)
+        if display_file.window.projecao == Window.PERSPECTIVA:
+            texto += "\nCOP ({:.0f}, {:.0f}, {:.0f})".format(*display_file.window.get_cop())
+        info_window.config(text=texto)
 
     display_file.observadores_window.append(atualizar_info_window)
     atualizar_info_window()
@@ -649,6 +693,8 @@ def objetos_iniciais(display_file: DisplayFile, combo: ttk.Combobox):
     arestas_cubo = [(i, j) for i in range(8) for j in range(i + 1, 8)
                     if sum(a != b for a, b in zip(vertices_cubo[i], vertices_cubo[j])) == 1]
     display_file.add(Objeto3D(display_file.canvas, "cubo0", "#008800", vertices_cubo, arestas_cubo))
+    vertices_caixa = [(x, y, z) for x in (620, 900) for y in (620, 780) for z in (-300, 60)]
+    display_file.add(Objeto3D(display_file.canvas, "paralelepipedo0", "#CC6600", vertices_caixa, arestas_cubo))
 
     tags_disponiveis = list(display_file.objects.keys())
     combo['values'] = tags_disponiveis

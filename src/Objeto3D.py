@@ -23,6 +23,4 @@ class Objeto3D(ObjGrafic):
     def draw(self, clipping: Clipping, transform):
         self.erase()
         for i, j in self.get_arestas():
-            segmento = clipping.reta(self.scn_points[i], self.scn_points[j])
-            if segmento is not None:
-                self.desenhar_segmento(segmento, transform)
+            self.desenhar_segmento_recortado(self.scn_points[i], self.scn_points[j], clipping, transform)
