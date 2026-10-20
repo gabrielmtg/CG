@@ -7,6 +7,7 @@ from src.ObjDot import ObjDot
 from src.ObjLine import ObjLine
 from src.ObjWireframe import ObjWireframe
 from src.ObjCurva import ObjCurva
+from src.ObjBSpline import ObjBSpline
 
 COR_PADRAO = "#000000"
 
@@ -49,6 +50,13 @@ class DescritorOBJ:
             linhas.append("deg 3")
             linhas.append(f"curv 0.000000 {n_segmentos:.6f} " + " ".join(indices))
             linhas.append("parm u " + " ".join(f"{i:.6f}" for i in range(n_segmentos + 1)))
+            linhas.append("end")
+        elif tipo == "bspline":
+            n = len(pontos)
+            linhas.append("cstype bspline")
+            linhas.append("deg 3")
+            linhas.append(f"curv {3:.6f} {n:.6f} " + " ".join(indices))
+            linhas.append("parm u " + " ".join(f"{i:.6f}" for i in range(n + 4)))
             linhas.append("end")
         elif getattr(obj, "filled", False):
             linhas.append("f " + " ".join(indices))
@@ -108,7 +116,8 @@ class DescritorOBJ:
         objetos: List[ObjGrafic] = []
         nomes_usados = set()
 
-        estado = {"nome": None, "cor": COR_PADRAO, "vertices_bloco": [], "tem_elemento": False}
+        estado = {"nome": None, "cor": COR_PADRAO, "vertices_bloco": [], "tem_elemento": False,
+                  "cstype": "bezier"}
 
         def nome_unico(base: str) -> str:
             nome, n = base, 1
@@ -125,7 +134,9 @@ class DescritorOBJ:
         def criar(pontos, tipo_forcado=None, fechado=True, preenchido=False):
             nome = nome_unico(estado["nome"] or "objeto")
             cor = estado["cor"]
-            if tipo_forcado == "curva" and ObjCurva.quantidade_valida(len(pontos)):
+            if tipo_forcado == "bspline" and ObjBSpline.quantidade_valida(len(pontos)):
+                objetos.append(ObjBSpline(canvas, nome, cor, pontos))
+            elif tipo_forcado == "curva" and ObjCurva.quantidade_valida(len(pontos)):
                 objetos.append(ObjCurva(canvas, nome, cor, pontos))
             elif tipo_forcado == "ponto" or len(pontos) == 1:
                 objetos.append(ObjDot(canvas, nome, cor, *pontos[0]))
@@ -170,8 +181,11 @@ class DescritorOBJ:
                     criar([vertices[i] for i in idx], fechado=fechado)
                 elif cmd == "f":
                     criar([vertices[indice(t)] for t in args], fechado=True, preenchido=True)
+                elif cmd == "cstype" and args:
+                    estado["cstype"] = args[-1].lower()
                 elif cmd == "curv":
-                    criar([vertices[indice(t)] for t in args[2:]], tipo_forcado="curva", fechado=False)
+                    tipo_curva = "bspline" if estado["cstype"] == "bspline" else "curva"
+                    criar([vertices[indice(t)] for t in args[2:]], tipo_forcado=tipo_curva, fechado=False)
 
         fechar_bloco()
         return objetos

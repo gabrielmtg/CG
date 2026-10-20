@@ -61,22 +61,4 @@ class ObjCurva(ObjGrafic):
 
     def draw(self, clipping: Clipping, transform):
         self.erase()
-        pontos = self.gerar_pontos(self.scn_points)
-        if len(pontos) < 2:
-            return
-        anterior = pontos[0]
-        anterior_dentro = clipping.ponto(anterior) is not None
-        for atual in pontos[1:]:
-            atual_dentro = clipping.ponto(atual) is not None
-            if anterior_dentro and atual_dentro:
-                segmento = (anterior, atual)
-            else:
-                segmento = clipping.reta(anterior, atual)
-            if segmento is not None:
-                (x0, y0), (x1, y1) = segmento
-                sx0, sy0 = transform(x0, y0)
-                sx1, sy1 = transform(x1, y1)
-                self.ids_obj.append(self.canvas.create_line(
-                    sx0, sy0, sx1, sy1, fill=self.color, width=3, tags=self.name
-                ))
-            anterior, anterior_dentro = atual, atual_dentro
+        self.desenhar_curva_recortada(self.gerar_pontos(self.scn_points), clipping, transform)
