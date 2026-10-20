@@ -30,6 +30,14 @@ class Transform:
         return result
 
     @staticmethod
+    def transposta(m: Matriz) -> Matriz:
+        return [list(linha) for linha in zip(*m)]
+
+    @staticmethod
+    def compor_4x4(a: Matriz, g: Matriz, b: Matriz) -> Matriz:
+        return Transform.mult_matrix(Transform.mult_matrix(a, g), b)
+
+    @staticmethod
     def compor(*matrizes: Matriz) -> Matriz:
         resultado = Transform.identidade()
         for m in matrizes:

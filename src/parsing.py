@@ -35,3 +35,11 @@ def parse_arestas(texto: str, n_vertices: int) -> Optional[List[Tuple[int, int]]
             raise ValueError(f"Aresta ({i},{j}) inválida: use índices de 1 a {n_vertices}, distintos.")
         arestas.append((i - 1, j - 1))
     return arestas
+
+
+def parse_matriz_pontos(texto: str) -> List[List[Tuple[float, float, float]]]:
+    linhas = [linha.strip() for linha in texto.replace("\n", " ").split(";")]
+    linhas = [linha for linha in linhas if linha]
+    if not linhas:
+        raise ValueError("Informe ao menos uma linha de pontos de controle.")
+    return [parse_pontos(linha) for linha in linhas]

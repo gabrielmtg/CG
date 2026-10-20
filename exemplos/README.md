@@ -12,6 +12,8 @@ Convenção dos elementos: `p` ponto, `l` reta ou polilinha aberta,
 (4 pontos por segmento, compartilhando o último com o próximo), `cstype bspline` + `deg 3` +
 `curv` B-Spline cúbica uniforme (qualquer quantidade de pontos a partir de 4; o vetor de nós em
 `parm u` é sempre tratado como uniforme).
+`cstype bezier` + `deg 3 3` + `surf` superfície bicúbica de Bézier (cada `surf` é um retalho
+com 16 pontos de controle; os `surf` de um mesmo bloco `o` formam uma única superfície).
 As cores RGB ficam no `.mtl` de mesmo nome.
 
 | Arquivo | O que testa |
@@ -25,6 +27,8 @@ As cores RGB ficam no `.mtl` de mesmo nome.
 | `objetos3d.obj` | Modelos de arame 3D: cubo, pirâmide, octaedro e prisma hexagonal (cada um um `Objeto3D`), uma hélice 3D e três eixos de referência saindo do centro da window. De frente parecem figuras 2D; gire a window para ver os volumes. |
 | `paralelepipedo.obj` | Um modelo de arame de paralelepípedo (400 × 240 × 500) no centro da window, de z = −400 a z = 100. De frente, em projeção paralela, aparece só um retângulo; em **Perspectiva** aparecem a face da frente, a de trás menor e as arestas de profundidade. Arraste o controle de distância do COP para ver o efeito "grande angular" × "teleobjetiva". |
 | `rua.obj` | Cena para perspectiva: 8 prédios (paralelepípedos) dos dois lados de uma rua que se afasta em profundidade. Em perspectiva as faixas convergem para um ponto de fuga e os prédios distantes encolhem; girando a window em Y vira perspectiva de dois pontos. |
+| `superficie.obj` | Superfície bicúbica de Bézier com **6 retalhos** (2 × 3), um tecido ondulado. Retalhos vizinhos compartilham a borda e os pontos dos dois lados estão alinhados, então a junção é suave. De frente parece uma grade levemente curva; gire a window para ver as ondas. |
+| `vaso.obj` | Vaso de revolução feito com **4 retalhos** de Bézier, um para cada 90° do contorno, fechando a volta. Fica bem em perspectiva e girando a window. |
 | `blender_cubo.obj` | Formato exatamente como o Blender exporta: cabeçalho, `vt`/`vn`, `s off`, faces `f v/vt/vn`, `.mtl` completo (`Ns`, `Ka`, `Kd`, ...) e círculo exportado como uma aresta `l` por linha. O `Cube` (6 faces) e o `Circle` (12 arestas) viram `Objeto3D`; o `Plane` (uma face) vira um polígono preenchido. |
 | `sem_mtl.obj` | Sem `.mtl` (cor padrão), `usemtl` inexistente, índices negativos, `f` preenchido, `l` fechada repetindo o primeiro índice, grupo `g`, blocos só com vértices e nomes com espaço. |
 

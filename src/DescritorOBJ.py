@@ -9,6 +9,7 @@ from src.ObjWireframe import ObjWireframe
 from src.ObjCurva import ObjCurva
 from src.ObjBSpline import ObjBSpline
 from src.Objeto3D import Objeto3D
+from src.ObjSuperficie import ObjSuperficie
 
 COR_PADRAO = "#000000"
 
@@ -48,6 +49,15 @@ class DescritorOBJ:
         elif tipo == "objeto3d":
             for i, j in obj.get_arestas():
                 linhas.append(f"l {indices[i]} {indices[j]}")
+        elif tipo == "superficie":
+            linhas.append("cstype bezier")
+            linhas.append("deg 3 3")
+            for retalho in obj.get_retalhos():
+                controle = " ".join(indices[i] for linha in retalho for i in linha)
+                linhas.append(f"surf 0.000000 1.000000 0.000000 1.000000 {controle}")
+                linhas.append("parm u 0.000000 1.000000")
+                linhas.append("parm v 0.000000 1.000000")
+                linhas.append("end")
         elif tipo == "curva":
             n_segmentos = (len(pontos) - 1) // 3
             linhas.append("cstype bezier")
@@ -120,7 +130,7 @@ class DescritorOBJ:
         objetos: List[ObjGrafic] = []
         nomes_usados = set()
 
-        estado = {"cor": COR_PADRAO, "cstype": "bezier"}
+        estado = {"cor": COR_PADRAO, "cstype": "bezier", "deg": ["3"]}
         bloco = {"nome": None, "vertices": [], "elementos": []}
 
         def nome_unico(base: str) -> str:
@@ -171,14 +181,30 @@ class DescritorOBJ:
             objetos.append(Objeto3D(canvas, nome_unico(bloco["nome"] or "objeto"), cor,
                                     [vertices[i] for i in usados], arestas))
 
+        def criar_superficie(elementos, cor: str):
+            usados: List[int] = []
+            for _, idx, _ in elementos:
+                for v in idx:
+                    if v not in usados:
+                        usados.append(v)
+            retalhos = [[[usados.index(idx[4 * i + j]) for j in range(4)] for i in range(4)]
+                        for _, idx, _ in elementos]
+            objetos.append(ObjSuperficie(canvas, nome_unico(bloco["nome"] or "objeto"), cor,
+                                         [vertices[i] for i in usados], retalhos))
+
         def fechar_bloco():
             elementos = bloco["elementos"]
             if not elementos and bloco["vertices"]:
                 criar("implicito", bloco["vertices"], estado["cor"])
             arestas = [e for e in elementos if e[0] in ("l", "f")]
-            malha_criada = False
+            retalhos = [e for e in elementos if e[0] == "surf"]
+            malha_criada = superficie_criada = False
             for tipo, idx, cor in elementos:
-                if tipo in ("l", "f") and len(arestas) > 1:
+                if tipo == "surf":
+                    if not superficie_criada:
+                        criar_superficie(retalhos, cor)
+                        superficie_criada = True
+                elif tipo in ("l", "f") and len(arestas) > 1:
                     if not malha_criada:
                         criar_malha(arestas, cor)
                         malha_criada = True
@@ -212,6 +238,12 @@ class DescritorOBJ:
                     bloco["elementos"].append((cmd, [indice(t) for t in args], estado["cor"]))
                 elif cmd == "cstype" and args:
                     estado["cstype"] = args[-1].lower()
+                elif cmd == "deg" and args:
+                    estado["deg"] = args
+                elif cmd == "surf":
+                    controle = [indice(t) for t in args[4:]]
+                    if estado["cstype"] == "bezier" and estado["deg"] == ["3", "3"] and len(controle) == 16:
+                        bloco["elementos"].append(("surf", controle, estado["cor"]))
                 elif cmd == "curv":
                     tipo_curva = "bspline" if estado["cstype"] == "bspline" else "bezier"
                     bloco["elementos"].append((tipo_curva, [indice(t) for t in args[2:]], estado["cor"]))

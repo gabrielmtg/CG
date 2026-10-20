@@ -9,13 +9,14 @@ from src.ObjWireframe import ObjWireframe
 from src.ObjCurva import ObjCurva
 from src.ObjBSpline import ObjBSpline
 from src.Objeto3D import Objeto3D
+from src.ObjSuperficie import ObjSuperficie
 from src.DisplayFile import DisplayFile
 from src.Viewport import Viewport
 from src.Window import Window
 from src.Transform import Transform
 from src.DescritorOBJ import DescritorOBJ
 from src.Clipping import Clipping
-from src.parsing import parse_pontos, parse_arestas
+from src.parsing import parse_pontos, parse_arestas, parse_matriz_pontos
 
 CANVAS_SIZE = 1000
 MARGEM_VIEWPORT = 20
@@ -29,7 +30,9 @@ DISTANCIAS_COP = (("Grande angular", 250), ("Normal", 1000), ("Teleobjetiva", 50
 
 COR_PADRAO = "#000000"
 COR_RGB_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
-TIPOS_DISPONIVEIS = ["Ponto", "Reta", "Wireframe", "Curva (Bézier)", "Curva (B-Spline)", "Objeto 3D (Arame)"]
+TIPO_SUPERFICIE = "Superfície (Bézier)"
+TIPOS_DISPONIVEIS = ["Ponto", "Reta", "Wireframe", "Curva (Bézier)", "Curva (B-Spline)", "Objeto 3D (Arame)",
+                     TIPO_SUPERFICIE]
 EIXOS = ["X", "Y", "Z"]
 
 REPEAT_DELAY_MS = 400
@@ -85,6 +88,22 @@ def ler_float(entry, nome):
         return float(entry.get().strip())
     except ValueError:
         raise ValueError(f"Valor inválido para '{nome}'.")
+
+
+def exemplo_superficie(retalhos: int) -> str:
+    colunas = 3 * retalhos
+    linhas_texto = []
+    for i in range(4):
+        pontos = []
+        for b in range(retalhos):
+            for j in range(4):
+                u = (3 * b + j) / colunas
+                x = 150 + 700 * u if retalhos > 1 else 350 + 100 * j
+                z = (220 if i in (1, 2) else 60) * math.sin(math.pi * u * retalhos) if retalhos > 1 \
+                    else (200 if i in (1, 2) and j in (1, 2) else 60 if i in (1, 2) or j in (1, 2) else 0)
+                pontos.append(f"({round(x)},{350 + 100 * i},{round(z)})")
+        linhas_texto.append(",".join(pontos) + ";")
+    return "\n".join(linhas_texto)
 
 
 def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.Combobox):
@@ -145,13 +164,42 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
     ttk.Label(janela, text="(i,j),... índices dos pontos a partir de 1\nvazio = liga os pontos em sequência",
               foreground="gray").grid(row=7, column=1, padx=5, sticky="w")
 
+    superficie_frame = ttk.LabelFrame(janela, text="Pontos de controle da superfície", padding=8)
+    superficie_frame.grid(row=8, column=0, columnspan=2, padx=5, pady=5, sticky="we")
+    ttk.Label(superficie_frame, foreground="gray", justify="left", text=(
+        "Linhas da matriz separadas por ';' (pode quebrar a linha). Cada bloco 4 × 4 é um retalho:\n"
+        "4 linhas × 4 pontos = 1 retalho, 4 × 12 = 3 retalhos lado a lado, 8 × 4 = 2 empilhados.\n"
+        "Pontos iguais em retalhos vizinhos viram o mesmo ponto de controle (continuidade C0).")
+    ).grid(row=0, column=0, columnspan=3, sticky="w")
+    superficie_texto = tk.Text(superficie_frame, width=78, height=8, font="TkFixedFont", wrap="none")
+    superficie_texto.grid(row=1, column=0, columnspan=2, pady=5)
+    rolagem_x = ttk.Scrollbar(superficie_frame, orient="horizontal", command=superficie_texto.xview)
+    rolagem_x.grid(row=2, column=0, columnspan=2, sticky="we")
+    superficie_texto.config(xscrollcommand=rolagem_x.set)
+
+    def preencher_exemplo(retalhos):
+        superficie_texto.delete("1.0", "end")
+        superficie_texto.insert("1.0", exemplo_superficie(retalhos))
+
+    exemplos = ttk.Frame(superficie_frame)
+    exemplos.grid(row=3, column=0, columnspan=2, sticky="w", pady=(5, 0))
+    ttk.Button(exemplos, text="Exemplo: 1 retalho", command=lambda: preencher_exemplo(1)).pack(side="left")
+    ttk.Button(exemplos, text="Exemplo: 3 retalhos", command=lambda: preencher_exemplo(3)).pack(side="left", padx=5)
+    preencher_exemplo(1)
+
     def atualizar_campos_tipo(event=None):
-        if tipo_combo.get() == "Wireframe":
+        tipo = tipo_combo.get()
+        if tipo == "Wireframe":
             preenchido_check.config(state="normal")
         else:
             preenchido_var.set(False)
             preenchido_check.config(state="disabled")
-        arestas_entry.config(state="normal" if tipo_combo.get() == "Objeto 3D (Arame)" else "disabled")
+        arestas_entry.config(state="normal" if tipo == "Objeto 3D (Arame)" else "disabled")
+        coords_entry.config(state="disabled" if tipo == TIPO_SUPERFICIE else "normal")
+        if tipo == TIPO_SUPERFICIE:
+            superficie_frame.grid()
+        else:
+            superficie_frame.grid_remove()
 
     tipo_combo.bind("<<ComboboxSelected>>", atualizar_campos_tipo)
     atualizar_campos_tipo()
@@ -172,6 +220,25 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
 
         if not COR_RGB_RE.match(cor):
             messagebox.showerror("Erro", "Cor inválida. Use o formato RGB hexadecimal #RRGGBB.")
+            return
+
+        if tipo == TIPO_SUPERFICIE:
+            try:
+                matriz = parse_matriz_pontos(superficie_texto.get("1.0", "end"))
+            except Exception:
+                messagebox.showerror("Erro", "Pontos de controle inválidos. Use (x,y,z),(x,y,z),...; "
+                                             "(x,y,z),... com as linhas da matriz separadas por ';'.")
+                return
+            try:
+                obj = ObjSuperficie.de_matriz(display_file.canvas, nome, cor, matriz)
+            except ValueError as erro:
+                messagebox.showerror("Erro", str(erro))
+                return
+            display_file.add(obj)
+            combo_objetos['values'] = list(display_file.objects.keys())
+            combo_objetos.set(nome)
+            combo_objetos.event_generate("<<ComboboxSelected>>")
+            janela.destroy()
             return
 
         try:
@@ -223,7 +290,7 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
         janela.destroy()
 
     botoes = ttk.Frame(janela)
-    botoes.grid(row=8, column=0, columnspan=2, pady=10)
+    botoes.grid(row=9, column=0, columnspan=2, pady=10)
     ttk.Button(botoes, text="Cancelar", command=janela.destroy).pack(side="left", padx=5)
     ttk.Button(botoes, text="OK", command=confirmar).pack(side="left", padx=5)
 

@@ -89,6 +89,43 @@ class ObjGrafic(ABC):
         if segmento is not None:
             self.desenhar_segmento(segmento, transform)
 
+    def desenhar_polilinha_recortada(self, pontos, clipping: Clipping, transform, largura: int = 3):
+        trecho = []
+
+        def fechar_trecho():
+            if len(trecho) >= 2:
+                coords = [c for x, y in trecho for c in transform(x, y)]
+                self.ids_obj.append(self.canvas.create_line(
+                    *coords, fill=self.color, width=largura, tags=self.name
+                ))
+            trecho.clear()
+
+        for anterior, atual in zip(pontos, pontos[1:]):
+            if anterior is None or atual is None:
+                fechar_trecho()
+                continue
+            anterior_dentro = clipping.ponto(anterior) is not None
+            atual_dentro = clipping.ponto(atual) is not None
+            if anterior_dentro and atual_dentro:
+                if not trecho:
+                    trecho.append(anterior)
+                trecho.append(atual)
+                continue
+            segmento = clipping.reta(anterior, atual)
+            if segmento is None:
+                fechar_trecho()
+            elif anterior_dentro:
+                if not trecho:
+                    trecho.append(anterior)
+                trecho.append(segmento[1])
+                fechar_trecho()
+            else:
+                fechar_trecho()
+                trecho.extend(segmento)
+                if not atual_dentro:
+                    fechar_trecho()
+        fechar_trecho()
+
     def desenhar_segmento(self, segmento, transform):
         (x0, y0), (x1, y1) = segmento
         sx0, sy0 = transform(x0, y0)
