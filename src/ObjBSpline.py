@@ -25,12 +25,6 @@ class ObjBSpline(ObjGrafic):
     def quantidade_valida(n: int) -> bool:
         return n >= ObjBSpline.MINIMO_PONTOS
 
-    def move_point(self, index: int, dx: float, dy: float):
-        if index < 0 or index >= len(self.points):
-            return
-        self.points[index][0] += dx
-        self.points[index][1] += dy
-
     @staticmethod
     def geometrias(controle: List[Ponto]) -> List[List[Ponto]]:
         return [controle[i - 3:i + 1] for i in range(3, len(controle))]

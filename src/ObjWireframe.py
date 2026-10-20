@@ -13,12 +13,6 @@ class ObjWireframe(ObjGrafic):
         self.closed = closed or filled
         self.filled = filled
 
-    def move_point(self, index: int, dx: float, dy: float):
-        if index < 0 or index >= len(self.points):
-            return
-        self.points[index][0] += dx
-        self.points[index][1] += dy
-
     def draw(self, clipping: Clipping, transform):
         self.erase()
         if self.filled:
@@ -40,11 +34,5 @@ class ObjWireframe(ObjGrafic):
         last_segment = n if self.closed else n - 1
         for i in range(last_segment):
             segmento = clipping.reta(self.scn_points[i], self.scn_points[(i + 1) % n])
-            if segmento is None:
-                continue
-            (x0, y0), (x1, y1) = segmento
-            sx0, sy0 = transform(x0, y0)
-            sx1, sy1 = transform(x1, y1)
-            self.ids_obj.append(self.canvas.create_line(
-                sx0, sy0, sx1, sy1, fill=self.color, width=3, tags=self.name
-            ))
+            if segmento is not None:
+                self.desenhar_segmento(segmento, transform)

@@ -8,6 +8,7 @@ from src.ObjLine import ObjLine
 from src.ObjWireframe import ObjWireframe
 from src.ObjCurva import ObjCurva
 from src.ObjBSpline import ObjBSpline
+from src.Objeto3D import Objeto3D
 
 COR_PADRAO = "#000000"
 
@@ -34,8 +35,8 @@ class DescritorOBJ:
     def descrever(obj: ObjGrafic, offset: int) -> List[str]:
         pontos = obj.get_points()
         linhas = [f"o {obj.get_name()}"]
-        for x, y in pontos:
-            linhas.append(f"v {x:.6f} {y:.6f} 0.000000")
+        for x, y, z in pontos:
+            linhas.append(f"v {x:.6f} {y:.6f} {z:.6f}")
         linhas.append(f"usemtl {DescritorOBJ.nome_material(obj)}")
 
         indices = [str(offset + i) for i in range(1, len(pontos) + 1)]
@@ -44,6 +45,9 @@ class DescritorOBJ:
             linhas.append("p " + " ".join(indices))
         elif tipo == "reta":
             linhas.append("l " + " ".join(indices))
+        elif tipo == "objeto3d":
+            for i, j in obj.get_arestas():
+                linhas.append(f"l {indices[i]} {indices[j]}")
         elif tipo == "curva":
             n_segmentos = (len(pontos) - 1) // 3
             linhas.append("cstype bezier")
@@ -111,13 +115,13 @@ class DescritorOBJ:
     @staticmethod
     def carregar(caminho: str, canvas: tk.Canvas) -> List[ObjGrafic]:
         pasta = os.path.dirname(caminho)
-        vertices: List[Tuple[float, float]] = []
+        vertices: List[Tuple[float, float, float]] = []
         materiais: Dict[str, str] = {}
         objetos: List[ObjGrafic] = []
         nomes_usados = set()
 
-        estado = {"nome": None, "cor": COR_PADRAO, "vertices_bloco": [], "tem_elemento": False,
-                  "cstype": "bezier"}
+        estado = {"cor": COR_PADRAO, "cstype": "bezier"}
+        bloco = {"nome": None, "vertices": [], "elementos": []}
 
         def nome_unico(base: str) -> str:
             nome, n = base, 1
@@ -131,26 +135,59 @@ class DescritorOBJ:
             i = int(token.split("/")[0])
             return len(vertices) + i if i < 0 else i - 1
 
-        def criar(pontos, tipo_forcado=None, fechado=True, preenchido=False):
-            nome = nome_unico(estado["nome"] or "objeto")
-            cor = estado["cor"]
-            if tipo_forcado == "bspline" and ObjBSpline.quantidade_valida(len(pontos)):
+        def criar(tipo: str, idx: List[int], cor: str):
+            pontos = [vertices[i] for i in idx]
+            nome = nome_unico(bloco["nome"] or "objeto")
+            fechado = tipo in ("f", "implicito")
+            if tipo == "l" and len(idx) > 2 and idx[0] == idx[-1]:
+                pontos, fechado = pontos[:-1], True
+            if tipo == "bspline" and ObjBSpline.quantidade_valida(len(pontos)):
                 objetos.append(ObjBSpline(canvas, nome, cor, pontos))
-            elif tipo_forcado == "curva" and ObjCurva.quantidade_valida(len(pontos)):
+            elif tipo == "bezier" and ObjCurva.quantidade_valida(len(pontos)):
                 objetos.append(ObjCurva(canvas, nome, cor, pontos))
-            elif tipo_forcado == "ponto" or len(pontos) == 1:
+            elif len(pontos) == 1:
                 objetos.append(ObjDot(canvas, nome, cor, *pontos[0]))
             elif len(pontos) == 2:
-                objetos.append(ObjLine(canvas, nome, cor, *pontos[0], *pontos[1]))
+                objetos.append(ObjLine(canvas, nome, cor, pontos[0], pontos[1]))
             else:
-                objetos.append(ObjWireframe(canvas, nome, cor, pontos, closed=fechado, filled=preenchido))
-            estado["tem_elemento"] = True
+                objetos.append(ObjWireframe(canvas, nome, cor, pontos, closed=fechado, filled=tipo == "f"))
+
+        def criar_malha(elementos, cor: str):
+            usados: List[int] = []
+            arestas = []
+            vistas = set()
+            for tipo, idx, _ in elementos:
+                pares = list(zip(idx, idx[1:]))
+                if tipo == "f":
+                    pares.append((idx[-1], idx[0]))
+                for a, b in pares:
+                    if a == b or (min(a, b), max(a, b)) in vistas:
+                        continue
+                    vistas.add((min(a, b), max(a, b)))
+                    for v in (a, b):
+                        if v not in usados:
+                            usados.append(v)
+                    arestas.append((usados.index(a), usados.index(b)))
+            objetos.append(Objeto3D(canvas, nome_unico(bloco["nome"] or "objeto"), cor,
+                                    [vertices[i] for i in usados], arestas))
 
         def fechar_bloco():
-            if not estado["tem_elemento"] and estado["vertices_bloco"]:
-                criar([vertices[i] for i in estado["vertices_bloco"]])
-            estado["vertices_bloco"] = []
-            estado["tem_elemento"] = False
+            elementos = bloco["elementos"]
+            if not elementos and bloco["vertices"]:
+                criar("implicito", bloco["vertices"], estado["cor"])
+            arestas = [e for e in elementos if e[0] in ("l", "f")]
+            malha_criada = False
+            for tipo, idx, cor in elementos:
+                if tipo in ("l", "f") and len(arestas) > 1:
+                    if not malha_criada:
+                        criar_malha(arestas, cor)
+                        malha_criada = True
+                elif tipo == "p":
+                    for i in idx:
+                        criar("p", [i], cor)
+                else:
+                    criar(tipo, idx, cor)
+            bloco["vertices"], bloco["elementos"] = [], []
 
         with open(caminho, encoding="utf-8") as f:
             for linha in f:
@@ -166,26 +203,18 @@ class DescritorOBJ:
                     estado["cor"] = materiais.get(linha[len("usemtl"):].strip(), COR_PADRAO)
                 elif cmd in ("o", "g"):
                     fechar_bloco()
-                    estado["nome"] = linha[1:].strip() or None
+                    bloco["nome"] = linha[1:].strip() or None
                 elif cmd == "v":
-                    vertices.append((float(args[0]), float(args[1])))
-                    estado["vertices_bloco"].append(len(vertices) - 1)
-                elif cmd == "p":
-                    for token in args:
-                        criar([vertices[indice(token)]], tipo_forcado="ponto")
-                elif cmd == "l":
-                    idx = [indice(t) for t in args]
-                    fechado = len(idx) > 2 and idx[0] == idx[-1]
-                    if fechado:
-                        idx = idx[:-1]
-                    criar([vertices[i] for i in idx], fechado=fechado)
-                elif cmd == "f":
-                    criar([vertices[indice(t)] for t in args], fechado=True, preenchido=True)
+                    z = float(args[2]) if len(args) > 2 else 0.0
+                    vertices.append((float(args[0]), float(args[1]), z))
+                    bloco["vertices"].append(len(vertices) - 1)
+                elif cmd in ("p", "l", "f"):
+                    bloco["elementos"].append((cmd, [indice(t) for t in args], estado["cor"]))
                 elif cmd == "cstype" and args:
                     estado["cstype"] = args[-1].lower()
                 elif cmd == "curv":
-                    tipo_curva = "bspline" if estado["cstype"] == "bspline" else "curva"
-                    criar([vertices[indice(t)] for t in args[2:]], tipo_forcado=tipo_curva, fechado=False)
+                    tipo_curva = "bspline" if estado["cstype"] == "bspline" else "bezier"
+                    bloco["elementos"].append((tipo_curva, [indice(t) for t in args[2:]], estado["cor"]))
 
         fechar_bloco()
         return objetos

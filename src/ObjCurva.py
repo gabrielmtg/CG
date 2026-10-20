@@ -24,12 +24,6 @@ class ObjCurva(ObjGrafic):
     def quantidade_valida(n: int) -> bool:
         return n >= 4 and (n - 1) % 3 == 0
 
-    def move_point(self, index: int, dx: float, dy: float):
-        if index < 0 or index >= len(self.points):
-            return
-        self.points[index][0] += dx
-        self.points[index][1] += dy
-
     @staticmethod
     def segmentos(controle: List[Ponto]) -> List[List[Ponto]]:
         return [controle[i:i + 4] for i in range(0, len(controle) - 3, 3)]

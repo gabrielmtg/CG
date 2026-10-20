@@ -1,19 +1,21 @@
 from abc import ABC, abstractmethod
 import tkinter as tk
-from typing import List, Tuple
+from typing import List, Sequence, Tuple
 
 from src.Clipping import Clipping
+from src.Ponto3D import Ponto3D
 from src.Transform import Transform, Matriz
 
 
 class ObjGrafic(ABC):
 
-    def __init__(self, canvas: tk.Canvas, name: str, color: str, tipo: str, points: List[Tuple[float, float]]):
+    def __init__(self, canvas: tk.Canvas, name: str, color: str, tipo: str,
+                 points: Sequence[Sequence[float]]):
         self.canvas = canvas
         self.name = name
         self.color = color
         self.tipo = tipo
-        self.points = [list(p) for p in points]
+        self.points: List[Ponto3D] = [Ponto3D(*Transform.como_3d(p)) for p in points]
         self.scn_points: List[Tuple[float, float]] = []
         self.ids_obj = []
 
@@ -27,13 +29,26 @@ class ObjGrafic(ABC):
         self.ids_obj = []
 
     def update_scn(self, matriz_scn: Matriz):
-        self.scn_points = Transform.aplicar_pontos(matriz_scn, self.get_points())
+        self.scn_points = []
+        for p in self.points:
+            x, y, _ = Transform.aplicar_ponto(matriz_scn, p.coords())
+            self.scn_points.append((x, y))
 
     def apply_transform(self, matriz: Matriz):
         Transform.aplicar(matriz, self)
 
-    def move(self, dx: float, dy: float):
-        self.apply_transform(Transform.matriz_translacao(dx, dy))
+    def move(self, dx: float, dy: float, dz: float = 0.0):
+        self.apply_transform(Transform.matriz_translacao(dx, dy, dz))
+
+    def escalonar(self, sx: float, sy: float, sz: float = 1.0):
+        self.apply_transform(Transform.matriz_escala_natural(sx, sy, sz, self.get_center()))
+
+    def rotacionar(self, graus: float, ponto: Sequence[float], direcao: Sequence[float]):
+        self.apply_transform(Transform.matriz_rotacao_eixo(graus, ponto, direcao))
+
+    def move_point(self, index: int, dx: float, dy: float, dz: float = 0.0):
+        if 0 <= index < len(self.points):
+            self.points[index].transladar(dx, dy, dz)
 
     def get_name(self) -> str:
         return self.name
@@ -44,14 +59,18 @@ class ObjGrafic(ABC):
     def get_type(self) -> str:
         return self.tipo
 
-    def get_points(self) -> List[Tuple[float, float]]:
-        return [tuple(p) for p in self.points]
+    def get_points(self) -> List[Tuple[float, float, float]]:
+        return [p.coords() for p in self.points]
 
-    def set_points(self, points: List[Tuple[float, float]]):
-        self.points = [list(p) for p in points]
+    def set_points(self, points: Sequence[Sequence[float]]):
+        if len(points) == len(self.points):
+            for p, novo in zip(self.points, points):
+                p.set(*Transform.como_3d(novo))
+        else:
+            self.points = [Ponto3D(*Transform.como_3d(p)) for p in points]
 
-    def get_center(self) -> Tuple[float, float]:
-        return Transform.centro_geometrico(self.points)
+    def get_center(self) -> Tuple[float, float, float]:
+        return Transform.centro_geometrico(self.get_points())
 
     def desenhar_curva_recortada(self, pontos: List[Tuple[float, float]], clipping: Clipping, transform):
         if len(pontos) < 2:
@@ -65,10 +84,13 @@ class ObjGrafic(ABC):
             else:
                 segmento = clipping.reta(anterior, atual)
             if segmento is not None:
-                (x0, y0), (x1, y1) = segmento
-                sx0, sy0 = transform(x0, y0)
-                sx1, sy1 = transform(x1, y1)
-                self.ids_obj.append(self.canvas.create_line(
-                    sx0, sy0, sx1, sy1, fill=self.color, width=3, tags=self.name
-                ))
+                self.desenhar_segmento(segmento, transform)
             anterior, anterior_dentro = atual, atual_dentro
+
+    def desenhar_segmento(self, segmento, transform):
+        (x0, y0), (x1, y1) = segmento
+        sx0, sy0 = transform(x0, y0)
+        sx1, sy1 = transform(x1, y1)
+        self.ids_obj.append(self.canvas.create_line(
+            sx0, sy0, sx1, sy1, fill=self.color, width=3, tags=self.name
+        ))

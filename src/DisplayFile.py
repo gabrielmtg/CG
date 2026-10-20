@@ -16,6 +16,7 @@ class DisplayFile:
         self.viewport = viewport
         self.clipping = clipping if clipping is not None else Clipping()
         self.objects: Dict[str, ObjGrafic] = {}
+        self.observadores_window = []
 
     def gerar_descricao_scn(self):
         matriz_scn = self.window.matriz_scn()
@@ -53,10 +54,10 @@ class DisplayFile:
             obj.erase()
         self.objects.clear()
 
-    def move_object(self, name: str, dx: float, dy: float):
+    def move_object(self, name: str, dx: float, dy: float, dz: float = 0.0):
         obj = self.objects.get(name)
         if obj is not None:
-            obj.move(*self.window.to_world_vector(dx, dy))
+            obj.move(*self.window.to_world_vector(dx, dy, dz))
             self._desenhar(obj)
 
     def transform_object(self, name: str, matriz: Matriz):
@@ -65,10 +66,10 @@ class DisplayFile:
             obj.apply_transform(matriz)
             self._desenhar(obj)
 
-    def move_point(self, name: str, index: int, dx: float, dy: float):
+    def move_point(self, name: str, index: int, dx: float, dy: float, dz: float = 0.0):
         obj = self.objects.get(name)
-        if obj is not None and hasattr(obj, "move_point"):
-            obj.move_point(index, *self.window.to_world_vector(dx, dy))
+        if obj is not None:
+            obj.move_point(index, *self.window.to_world_vector(dx, dy, dz))
             self._desenhar(obj)
 
     def find_object_at(self, sx: float, sy: float, halo: int = 5):
@@ -78,14 +79,36 @@ class DisplayFile:
                 return obj.get_name()
         return None
 
-    def pan(self, dx: float, dy: float):
-        self.window.pan(dx, dy)
+    def _window_mudou(self):
         self.redraw_all()
+        for observador in self.observadores_window:
+            observador()
+
+    def pan(self, dx: float, dy: float, dz: float = 0.0):
+        self.window.pan(dx, dy, dz)
+        self._window_mudou()
 
     def zoom(self, factor: float):
         self.window.zoom(factor)
-        self.redraw_all()
+        self._window_mudou()
 
     def rotate_window(self, graus: float):
         self.window.rotate(graus)
-        self.redraw_all()
+        self._window_mudou()
+
+    def rotate_window_x(self, graus: float):
+        self.window.rotate_x(graus)
+        self._window_mudou()
+
+    def rotate_window_y(self, graus: float):
+        self.window.rotate_y(graus)
+        self._window_mudou()
+
+    def orbitar_window(self, graus_x: float, graus_y: float):
+        self.window.rotate_x(graus_x)
+        self.window.rotate_y(graus_y)
+        self._window_mudou()
+
+    def resetar_window(self):
+        self.window.resetar()
+        self._window_mudou()

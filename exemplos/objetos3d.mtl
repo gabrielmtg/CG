@@ -1,0 +1,25 @@
+# Materiais dos objetos 3D
+
+newmtl verde
+Kd 0.000 0.530 0.000
+
+newmtl laranja
+Kd 1.000 0.550 0.000
+
+newmtl roxo
+Kd 0.550 0.100 0.750
+
+newmtl azul
+Kd 0.100 0.300 0.900
+
+newmtl ciano
+Kd 0.000 0.700 0.750
+
+newmtl vermelho
+Kd 0.900 0.100 0.100
+
+newmtl verde_claro
+Kd 0.200 0.800 0.200
+
+newmtl azul_claro
+Kd 0.200 0.500 1.000

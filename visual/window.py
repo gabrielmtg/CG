@@ -7,23 +7,26 @@ from src.ObjLine import ObjLine
 from src.ObjWireframe import ObjWireframe
 from src.ObjCurva import ObjCurva
 from src.ObjBSpline import ObjBSpline
+from src.Objeto3D import Objeto3D
 from src.DisplayFile import DisplayFile
 from src.Viewport import Viewport
 from src.Window import Window
 from src.Transform import Transform
 from src.DescritorOBJ import DescritorOBJ
 from src.Clipping import Clipping
-from src.parsing import parse_pontos
+from src.parsing import parse_pontos, parse_arestas
 
 CANVAS_SIZE = 1000
 MARGEM_VIEWPORT = 20
 PASSO_MOVIMENTO = 10
 FATOR_ZOOM = 1.2
 PASSO_ROTACAO = 15
+GRAUS_POR_PIXEL = 0.5
 
 COR_PADRAO = "#000000"
 COR_RGB_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
-TIPOS_DISPONIVEIS = ["Ponto", "Reta", "Wireframe", "Curva (Bézier)", "Curva (B-Spline)"]
+TIPOS_DISPONIVEIS = ["Ponto", "Reta", "Wireframe", "Curva (Bézier)", "Curva (B-Spline)", "Objeto 3D (Arame)"]
+EIXOS = ["X", "Y", "Z"]
 
 REPEAT_DELAY_MS = 400
 REPEAT_INTERVAL_MS = 60
@@ -56,6 +59,21 @@ def campo_numerico(parent, texto, row, valor="0"):
     entry.insert(0, valor)
     entry.grid(row=row, column=1, padx=5, pady=3)
     return entry
+
+
+def campos_vetor(parent, texto, row, valores=("0", "0", "0")):
+    ttk.Label(parent, text=texto).grid(row=row, column=0, sticky="w", padx=5, pady=3)
+    entradas = []
+    for coluna, valor in enumerate(valores, start=1):
+        entry = ttk.Entry(parent, width=7)
+        entry.insert(0, valor)
+        entry.grid(row=row, column=coluna, padx=2, pady=3)
+        entradas.append(entry)
+    return entradas
+
+
+def ler_vetor(entradas, nome):
+    return tuple(ler_float(e, f"{nome} {eixo}") for e, eixo in zip(entradas, "XYZ"))
 
 
 def ler_float(entry, nome):
@@ -110,20 +128,29 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
     coords_entry = ttk.Entry(janela, width=30)
     coords_entry.insert(0, "(x1,y1),(x2,y2),...")
     coords_entry.grid(row=3, column=1, padx=5, pady=5, sticky="w")
+    ttk.Label(janela, text="z é opcional: (x,y) ou (x,y,z)", foreground="gray").grid(
+        row=4, column=1, padx=5, sticky="w")
 
     preenchido_var = tk.BooleanVar(value=False)
     preenchido_check = ttk.Checkbutton(janela, text="Polígono preenchido", variable=preenchido_var)
-    preenchido_check.grid(row=4, column=1, padx=5, pady=5, sticky="w")
+    preenchido_check.grid(row=5, column=1, padx=5, pady=5, sticky="w")
 
-    def atualizar_preenchido(event=None):
+    ttk.Label(janela, text="Arestas:").grid(row=6, column=0, sticky="w", padx=5, pady=5)
+    arestas_entry = ttk.Entry(janela, width=30)
+    arestas_entry.grid(row=6, column=1, padx=5, pady=5, sticky="w")
+    ttk.Label(janela, text="(i,j),... índices dos pontos a partir de 1\nvazio = liga os pontos em sequência",
+              foreground="gray").grid(row=7, column=1, padx=5, sticky="w")
+
+    def atualizar_campos_tipo(event=None):
         if tipo_combo.get() == "Wireframe":
             preenchido_check.config(state="normal")
         else:
             preenchido_var.set(False)
             preenchido_check.config(state="disabled")
+        arestas_entry.config(state="normal" if tipo_combo.get() == "Objeto 3D (Arame)" else "disabled")
 
-    tipo_combo.bind("<<ComboboxSelected>>", atualizar_preenchido)
-    atualizar_preenchido()
+    tipo_combo.bind("<<ComboboxSelected>>", atualizar_campos_tipo)
+    atualizar_campos_tipo()
 
     def confirmar():
         nome = nome_entry.get().strip()
@@ -157,7 +184,7 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
             elif tipo == "Reta":
                 if len(pontos) != 2:
                     raise ValueError("Reta requer exatamente 2 coordenadas.")
-                obj = ObjLine(display_file.canvas, nome, cor, *pontos[0], *pontos[1])
+                obj = ObjLine(display_file.canvas, nome, cor, pontos[0], pontos[1])
             elif tipo == "Curva (Bézier)":
                 if not ObjCurva.quantidade_valida(len(pontos)):
                     raise ValueError("Curva de Bézier requer 4 + 3k pontos (4, 7, 10, ...): "
@@ -167,6 +194,13 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
                 if not ObjBSpline.quantidade_valida(len(pontos)):
                     raise ValueError(f"B-Spline requer ao menos {ObjBSpline.MINIMO_PONTOS} pontos de controle.")
                 obj = ObjBSpline(display_file.canvas, nome, cor, pontos)
+            elif tipo == "Objeto 3D (Arame)":
+                if len(pontos) < 2:
+                    raise ValueError("Objeto 3D requer ao menos 2 pontos.")
+                arestas = parse_arestas(arestas_entry.get(), len(pontos))
+                if arestas is None:
+                    arestas = [(i, i + 1) for i in range(len(pontos) - 1)]
+                obj = Objeto3D(display_file.canvas, nome, cor, pontos, arestas)
             else:
                 preenchido = preenchido_var.get()
                 if preenchido and len(pontos) < 3:
@@ -174,8 +208,8 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
                 if len(pontos) < 2:
                     raise ValueError("Wireframe requer ao menos 2 coordenadas.")
                 obj = ObjWireframe(display_file.canvas, nome, cor, pontos, filled=preenchido)
-        except ValueError as erro:
-            messagebox.showerror("Erro", str(erro))
+        except (ValueError, TypeError, SyntaxError) as erro:
+            messagebox.showerror("Erro", str(erro) or "Arestas inválidas. Use o formato (i,j),(k,l),...")
             return
 
         display_file.add(obj)
@@ -185,7 +219,7 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
         janela.destroy()
 
     botoes = ttk.Frame(janela)
-    botoes.grid(row=5, column=0, columnspan=2, pady=10)
+    botoes.grid(row=8, column=0, columnspan=2, pady=10)
     ttk.Button(botoes, text="Cancelar", command=janela.destroy).pack(side="left", padx=5)
     ttk.Button(botoes, text="OK", command=confirmar).pack(side="left", padx=5)
 
@@ -197,7 +231,7 @@ def transformacao_dialog(root: Tk, display_file: DisplayFile, nome: str):
         return
 
     janela = tk.Toplevel(root)
-    janela.title(f"Transformações 2D - {nome}")
+    janela.title(f"Transformações 3D - {nome}")
     janela.grab_set()
 
     esquerda = ttk.Frame(janela, padding=10)
@@ -210,43 +244,55 @@ def transformacao_dialog(root: Tk, display_file: DisplayFile, nome: str):
 
     aba_translacao = ttk.Frame(abas, padding=10)
     abas.add(aba_translacao, text="Translação")
-    ttk.Label(aba_translacao, text="Relativa à orientação da window").grid(row=0, column=0, columnspan=2, pady=(0, 5))
+    ttk.Label(aba_translacao, text="Relativa à orientação da window\n(x: direita, y: cima, z: VPN)").grid(
+        row=0, column=0, columnspan=2, pady=(0, 5))
     dx_entry = campo_numerico(aba_translacao, "Dx:", 1)
     dy_entry = campo_numerico(aba_translacao, "Dy:", 2)
+    dz_entry = campo_numerico(aba_translacao, "Dz:", 3)
 
     aba_escala = ttk.Frame(abas, padding=10)
     abas.add(aba_escala, text="Escalonamento")
     ttk.Label(aba_escala, text="Em torno do centro do objeto").grid(row=0, column=0, columnspan=2, pady=(0, 5))
     sx_entry = campo_numerico(aba_escala, "Sx:", 1, "1")
     sy_entry = campo_numerico(aba_escala, "Sy:", 2, "1")
+    sz_entry = campo_numerico(aba_escala, "Sz:", 3, "1")
 
     aba_rotacao = ttk.Frame(abas, padding=10)
     abas.add(aba_rotacao, text="Rotação")
 
     modo_rotacao = tk.StringVar(value="mundo")
     opcoes = ttk.LabelFrame(aba_rotacao, text="Opções", padding=5)
-    opcoes.grid(row=0, column=0, columnspan=2, sticky="we", pady=(0, 5))
+    opcoes.grid(row=0, column=0, columnspan=4, sticky="we", pady=(0, 5))
     ttk.Radiobutton(opcoes, text="Em torno do centro do mundo", variable=modo_rotacao,
                     value="mundo").pack(anchor="w")
     ttk.Radiobutton(opcoes, text="Em torno do centro do objeto", variable=modo_rotacao,
                     value="objeto").pack(anchor="w")
     ttk.Radiobutton(opcoes, text="Em torno de um ponto qualquer", variable=modo_rotacao,
                     value="ponto").pack(anchor="w")
+    ttk.Radiobutton(opcoes, text="Em torno de um eixo arbitrário (A → B)", variable=modo_rotacao,
+                    value="arbitrario").pack(anchor="w")
 
     angulo_entry = campo_numerico(aba_rotacao, "Ângulo (graus):", 1)
-    px_entry = campo_numerico(aba_rotacao, "Ponto X:", 2)
-    py_entry = campo_numerico(aba_rotacao, "Ponto Y:", 3)
+    ttk.Label(aba_rotacao, text="Eixo:").grid(row=2, column=0, sticky="w", padx=5, pady=3)
+    eixo_combo = ttk.Combobox(aba_rotacao, state="readonly", values=EIXOS, width=4)
+    eixo_combo.set("Z")
+    eixo_combo.grid(row=2, column=1, padx=5, pady=3, sticky="w")
+    ponto_a = campos_vetor(aba_rotacao, "Ponto (A):", 3)
+    ponto_b = campos_vetor(aba_rotacao, "Ponto B:", 4, ("0", "0", "1"))
 
-    def atualizar_campos_ponto(*args):
-        estado = "normal" if modo_rotacao.get() == "ponto" else "disabled"
-        px_entry.config(state=estado)
-        py_entry.config(state=estado)
+    def atualizar_campos_rotacao(*args):
+        modo = modo_rotacao.get()
+        eixo_combo.config(state="disabled" if modo == "arbitrario" else "readonly")
+        for entry in ponto_a:
+            entry.config(state="normal" if modo in ("ponto", "arbitrario") else "disabled")
+        for entry in ponto_b:
+            entry.config(state="normal" if modo == "arbitrario" else "disabled")
 
-    modo_rotacao.trace_add("write", atualizar_campos_ponto)
-    atualizar_campos_ponto()
+    modo_rotacao.trace_add("write", atualizar_campos_rotacao)
+    atualizar_campos_rotacao()
 
     ttk.Label(direita, text="Transformações:").pack(side="top", anchor="w")
-    lista = tk.Listbox(direita, width=42, height=12)
+    lista = tk.Listbox(direita, width=48, height=14)
     lista.pack(side="top", pady=5)
 
     pendentes = []
@@ -255,27 +301,35 @@ def transformacao_dialog(root: Tk, display_file: DisplayFile, nome: str):
         aba = abas.index(abas.select())
         try:
             if aba == 0:
-                dx, dy = ler_float(dx_entry, "Dx"), ler_float(dy_entry, "Dy")
-                descricao = f"Translação (dx={dx:g}, dy={dy:g})"
+                d = ler_float(dx_entry, "Dx"), ler_float(dy_entry, "Dy"), ler_float(dz_entry, "Dz")
+                descricao = "Translação (dx={:g}, dy={:g}, dz={:g})".format(*d)
                 montar = lambda centro: Transform.matriz_translacao(
-                    *display_file.window.to_world_vector(dx, dy))
+                    *display_file.window.to_world_vector(*d))
             elif aba == 1:
-                sx, sy = ler_float(sx_entry, "Sx"), ler_float(sy_entry, "Sy")
-                descricao = f"Escalonamento (sx={sx:g}, sy={sy:g})"
-                montar = lambda centro: Transform.matriz_escala_natural(sx, sy, centro)
+                fatores = ler_float(sx_entry, "Sx"), ler_float(sy_entry, "Sy"), ler_float(sz_entry, "Sz")
+                descricao = "Escalonamento (sx={:g}, sy={:g}, sz={:g})".format(*fatores)
+                montar = lambda centro: Transform.matriz_escala_natural(*fatores, centro)
             else:
                 angulo = ler_float(angulo_entry, "Ângulo")
                 modo = modo_rotacao.get()
+                eixo = eixo_combo.get()
                 if modo == "mundo":
-                    descricao = f"Rotação {angulo:g}° (centro do mundo)"
-                    montar = lambda centro: Transform.matriz_rotacao(angulo)
+                    descricao = f"Rotação {angulo:g}° (centro do mundo, eixo {eixo})"
+                    montar = lambda centro: Transform.matriz_rotacao_ponto(angulo, (0, 0, 0), eixo)
                 elif modo == "objeto":
-                    descricao = f"Rotação {angulo:g}° (centro do objeto)"
-                    montar = lambda centro: Transform.matriz_rotacao_ponto(angulo, centro)
+                    descricao = f"Rotação {angulo:g}° (centro do objeto, eixo {eixo})"
+                    montar = lambda centro: Transform.matriz_rotacao_ponto(angulo, centro, eixo)
+                elif modo == "ponto":
+                    a = ler_vetor(ponto_a, "Ponto A")
+                    descricao = "Rotação {:g}° (ponto ({:g}, {:g}, {:g}), eixo {})".format(angulo, *a, eixo)
+                    montar = lambda centro: Transform.matriz_rotacao_ponto(angulo, a, eixo)
                 else:
-                    px, py = ler_float(px_entry, "Ponto X"), ler_float(py_entry, "Ponto Y")
-                    descricao = f"Rotação {angulo:g}° (ponto ({px:g}, {py:g}))"
-                    montar = lambda centro: Transform.matriz_rotacao_ponto(angulo, (px, py))
+                    a, b = ler_vetor(ponto_a, "Ponto A"), ler_vetor(ponto_b, "Ponto B")
+                    if a == b:
+                        raise ValueError("Os pontos A e B do eixo devem ser diferentes.")
+                    eixo_ab = tuple(b[i] - a[i] for i in range(3))
+                    descricao = "Rotação {:g}° (eixo ({:g}, {:g}, {:g}) → ({:g}, {:g}, {:g}))".format(angulo, *a, *b)
+                    montar = lambda centro: Transform.matriz_rotacao_eixo(angulo, a, eixo_ab)
         except ValueError as erro:
             messagebox.showerror("Erro", str(erro), parent=janela)
             return
@@ -379,6 +433,41 @@ def bind_context_menu(root: Tk, display_file: DisplayFile, combo_objetos: ttk.Co
     display_file.canvas.bind("<Button-3>", abrir_menu)
 
 
+def bind_navegacao_mouse(display_file: DisplayFile):
+    canvas = display_file.canvas
+    ultimo = {"x": 0, "y": 0}
+
+    def iniciar(event):
+        ultimo["x"], ultimo["y"] = event.x, event.y
+
+    def deslocamento(event):
+        dx, dy = event.x - ultimo["x"], event.y - ultimo["y"]
+        ultimo["x"], ultimo["y"] = event.x, event.y
+        return dx, dy
+
+    def orbitar(event):
+        dx, dy = deslocamento(event)
+        if dx or dy:
+            display_file.orbitar_window(-dy * GRAUS_POR_PIXEL, -dx * GRAUS_POR_PIXEL)
+
+    def arrastar(event):
+        dx, dy = deslocamento(event)
+        vp = display_file.viewport
+        escala = display_file.window.width / (vp.vp_xmax - vp.vp_xmin)
+        display_file.pan(-dx * escala, dy * escala)
+
+    def rolar(event):
+        para_cima = getattr(event, "num", 0) == 4 or getattr(event, "delta", 0) > 0
+        display_file.zoom(FATOR_ZOOM if para_cima else 1 / FATOR_ZOOM)
+
+    canvas.bind("<ButtonPress-2>", iniciar)
+    canvas.bind("<B2-Motion>", orbitar)
+    canvas.bind("<Shift-B2-Motion>", arrastar)
+    canvas.bind("<MouseWheel>", rolar)
+    canvas.bind("<Button-4>", rolar)
+    canvas.bind("<Button-5>", rolar)
+
+
 def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
     main_section = ttk.Frame(root, padding=20)
     main_section.pack(side="left", fill="y")
@@ -422,6 +511,9 @@ def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
     btn_zoom_in.grid(row=1, column=0, padx=2, pady=5)
     bind_hold(btn_zoom_in, lambda: display_file.zoom(FATOR_ZOOM))
 
+    ttk.Button(camera_section, text="Vista inicial",
+               command=display_file.resetar_window).grid(row=1, column=1, padx=2, pady=5)
+
     btn_zoom_out = ttk.Button(camera_section, text="Zoom Out (-)")
     btn_zoom_out.grid(row=1, column=2, padx=2, pady=5)
     bind_hold(btn_zoom_out, lambda: display_file.zoom(1 / FATOR_ZOOM))
@@ -442,31 +534,43 @@ def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
     btn_cam_dir.grid(row=3, column=2)
     bind_hold(btn_cam_dir, lambda: display_file.pan(PASSO_MOVIMENTO, 0))
 
-    ttk.Label(camera_section, text="Rotação da Window").grid(row=5, column=0, columnspan=3, pady=(15, 5))
+    ttk.Label(camera_section, text="Rotação da Window (eixos da window)").grid(
+        row=5, column=0, columnspan=3, pady=(15, 5))
 
     ttk.Label(camera_section, text="Ângulo:").grid(row=6, column=0, sticky="e")
     angulo_entry = ttk.Entry(camera_section, width=6)
     angulo_entry.insert(0, str(PASSO_ROTACAO))
     angulo_entry.grid(row=6, column=1)
-    angulo_atual = ttk.Label(camera_section, text="atual: 0°")
-    angulo_atual.grid(row=6, column=2)
 
-    def rotacionar_window(sentido):
+    def rotacionar_window(rotacao, sentido):
         try:
             graus = float(angulo_entry.get().strip())
         except ValueError:
             messagebox.showerror("Erro", "Ângulo de rotação inválido.")
             return
-        display_file.rotate_window(sentido * graus)
-        angulo_atual.config(text=f"atual: {display_file.window.get_angle():g}°")
+        rotacao(sentido * graus)
 
-    btn_rot_esq = ttk.Button(camera_section, text="↺ Anti-horário")
-    btn_rot_esq.grid(row=7, column=0, padx=2, pady=5)
-    bind_hold(btn_rot_esq, lambda: rotacionar_window(+1))
+    rotacoes = (("X", display_file.rotate_window_x), ("Y", display_file.rotate_window_y),
+                ("Z", display_file.rotate_window))
+    for linha, (eixo, rotacao) in enumerate(rotacoes, start=7):
+        btn_mais = ttk.Button(camera_section, text=f"+{eixo}")
+        btn_mais.grid(row=linha, column=0, padx=2, pady=2)
+        bind_hold(btn_mais, lambda r=rotacao: rotacionar_window(r, +1))
+        ttk.Label(camera_section, text=f"eixo {eixo}").grid(row=linha, column=1)
+        btn_menos = ttk.Button(camera_section, text=f"−{eixo}")
+        btn_menos.grid(row=linha, column=2, padx=2, pady=2)
+        bind_hold(btn_menos, lambda r=rotacao: rotacionar_window(r, -1))
 
-    btn_rot_dir = ttk.Button(camera_section, text="↻ Horário")
-    btn_rot_dir.grid(row=7, column=2, padx=2, pady=5)
-    bind_hold(btn_rot_dir, lambda: rotacionar_window(-1))
+    info_window = ttk.Label(camera_section, foreground="gray", justify="left")
+    info_window.grid(row=10, column=0, columnspan=3, pady=(5, 0))
+
+    def atualizar_info_window():
+        vpn = display_file.window.get_vpn()
+        vup = display_file.window.get_vup()
+        info_window.config(text="VPN ({:.2f}, {:.2f}, {:.2f})\nVUP ({:.2f}, {:.2f}, {:.2f})".format(*vpn, *vup))
+
+    display_file.observadores_window.append(atualizar_info_window)
+    atualizar_info_window()
 
     actions_section = ttk.Frame(main_section, padding=10)
     actions_section.pack(side="top")
@@ -524,7 +628,7 @@ def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
     def atualizar_visibilidade(event=None):
         nome = combo_objetos.get()
         obj = display_file.objects.get(nome)
-        if obj is not None and hasattr(obj, "move_point"):
+        if obj is not None and len(obj.get_points()) > 1:
             n_pontos = len(obj.get_points())
             combo_pontos['values'] = [f"Ponto {i}" for i in range(n_pontos)]
             combo_pontos.current(0)
@@ -537,10 +641,14 @@ def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
 
 
 def objetos_iniciais(display_file: DisplayFile, combo: ttk.Combobox):
-    display_file.add(ObjLine(display_file.canvas, "linha0", "#FF0000", 100, 100, 500, 500))
+    display_file.add(ObjLine(display_file.canvas, "linha0", "#FF0000", (100, 100), (500, 500)))
     display_file.add(ObjDot(display_file.canvas, "ponto0", "#000000", 550, 550))
     display_file.add(ObjWireframe(display_file.canvas, "triangulo0", "#0000FF",
                                    [(700, 200), (900, 200), (800, 400)]))
+    vertices_cubo = [(x, y, z) for x in (150, 350) for y in (650, 850) for z in (-100, 100)]
+    arestas_cubo = [(i, j) for i in range(8) for j in range(i + 1, 8)
+                    if sum(a != b for a, b in zip(vertices_cubo[i], vertices_cubo[j])) == 1]
+    display_file.add(Objeto3D(display_file.canvas, "cubo0", "#008800", vertices_cubo, arestas_cubo))
 
     tags_disponiveis = list(display_file.objects.keys())
     combo['values'] = tags_disponiveis
@@ -551,7 +659,7 @@ def objetos_iniciais(display_file: DisplayFile, combo: ttk.Combobox):
 
 def main():
     root = tk.Tk()
-    root.title("Trabalho de CG - SGI 2D")
+    root.title("Trabalho de CG - SGI 3D")
 
     canva = tk.Canvas(root, height=CANVAS_SIZE, width=CANVAS_SIZE, bg="white")
     canva.pack(side="right", padx=10, pady=10)
@@ -560,13 +668,14 @@ def main():
                            CANVAS_SIZE - MARGEM_VIEWPORT, CANVAS_SIZE - MARGEM_VIEWPORT,
                            outline="red", width=2)
 
-    window = Window(CANVAS_SIZE / 2, CANVAS_SIZE / 2, CANVAS_SIZE, CANVAS_SIZE)
+    window = Window((CANVAS_SIZE / 2, CANVAS_SIZE / 2, 0), CANVAS_SIZE, CANVAS_SIZE)
     viewport = Viewport(MARGEM_VIEWPORT, MARGEM_VIEWPORT,
                         CANVAS_SIZE - MARGEM_VIEWPORT, CANVAS_SIZE - MARGEM_VIEWPORT)
     display_file = DisplayFile(canva, window, viewport)
 
     combo = functions_menu(root, display_file)
     bind_context_menu(root, display_file, combo)
+    bind_navegacao_mouse(display_file)
     objetos_iniciais(display_file, combo)
 
     root.mainloop()
