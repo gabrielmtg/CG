@@ -1,0 +1,36 @@
+# Superfície B-Spline bicúbica: matriz 4 x 6 de pontos de controle, que gera (4-3) x (6-3) = 3 retalhos.
+# Um único 'surf' traz a matriz inteira; as dimensões vêm de parm u/v (nós - grau - 1).
+mtllib bspline_3retalhos.mtl
+
+o faixa
+v 120 300 0
+v 272 300 80.84
+v 424 300 49.962
+v 576 300 -49.962
+v 728 300 -80.84
+v 880 300 0
+v 120 433.333 0
+v 272 433.333 161.68
+v 424 433.333 99.923
+v 576 433.333 -99.923
+v 728 433.333 -161.68
+v 880 433.333 0
+v 120 566.667 0
+v 272 566.667 161.68
+v 424 566.667 99.923
+v 576 566.667 -99.923
+v 728 566.667 -161.68
+v 880 566.667 0
+v 120 700 0
+v 272 700 80.84
+v 424 700 49.962
+v 576 700 -49.962
+v 728 700 -80.84
+v 880 700 0
+usemtl verde
+cstype bspline
+deg 3 3
+surf 3.0 6.0 3.0 4.0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24
+parm u 0 1 2 3 4 5 6 7 8 9
+parm v 0 1 2 3 4 5 6 7
+end

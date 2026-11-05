@@ -11,6 +11,7 @@ class Window:
     PERSPECTIVA = "Perspectiva"
     PROJECOES = (PARALELA, PERSPECTIVA)
     DISTANCIA_MINIMA_COP = 1e-3
+    MARGEM_ENQUADRAMENTO = 1.1
 
     def __init__(self, vrp: Sequence[float], width: float, height: float,
                  vpn: Sequence[float] = (0.0, 0.0, 1.0), vup: Sequence[float] = (0.0, 1.0, 0.0),
@@ -22,6 +23,7 @@ class Window:
         self.vup = self._ortogonalizar(vup)
         self.projecao = projecao
         self.distancia_cop = distancia_cop
+        self.escala_cena = 1.0
         self._inicial = (self.vrp, width, height, self.vpn, self.vup)
 
     def _ortogonalizar(self, vup: Sequence[float]) -> Ponto:
@@ -85,8 +87,21 @@ class Window:
     def rotate_y(self, graus: float):
         self._girar(graus, self.eixos()[1])
 
+    def enquadrar(self, pontos: Sequence[Sequence[float]]):
+        centro = tuple((min(p[k] for p in pontos) + max(p[k] for p in pontos)) / 2 for k in range(3))
+        raio = max(math.dist(centro, p) for p in pontos)
+        self.vrp = centro
+        if raio > 0:
+            fator = 2 * raio * self.MARGEM_ENQUADRAMENTO / self.width
+            self.width *= fator
+            self.height *= fator
+            self.distancia_cop *= fator
+            self.escala_cena *= fator
+
     def resetar(self):
         self.vrp, self.width, self.height, self.vpn, self.vup = self._inicial
+        self.distancia_cop /= self.escala_cena
+        self.escala_cena = 1.0
 
     def angulos_vpn(self) -> Tuple[float, float]:
         a, b, c = self.vpn

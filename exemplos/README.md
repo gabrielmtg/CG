@@ -5,6 +5,10 @@ Use **Carregar .obj** no SGI para abrir qualquer um destes arquivos.
 Os vértices são 3D (`v x y z`). Um bloco `o` com **várias** arestas (`l`) ou faces (`f`)
 é carregado como um `Objeto3D` (modelo de arame); um bloco com um único elemento vira o
 objeto 2D correspondente. Gire a window em X/Y para ver a profundidade.
+Grupos `g` só de faces que compartilham vértices são juntados em um único `Objeto3D`.
+
+Modelos com coordenadas muito diferentes da window inicial (0..1000) podem aparecer minúsculos
+ou fora da tela: use o botão **Enquadrar**, que ajusta a window à cena inteira.
 
 Convenção dos elementos: `p` ponto, `l` reta ou polilinha aberta,
 `l a b c a` (repetindo o primeiro índice) contorno fechado em wireframe,
@@ -14,6 +18,8 @@ Convenção dos elementos: `p` ponto, `l` reta ou polilinha aberta,
 `parm u` é sempre tratado como uniforme).
 `cstype bezier` + `deg 3 3` + `surf` superfície bicúbica de Bézier (cada `surf` é um retalho
 com 16 pontos de controle; os `surf` de um mesmo bloco `o` formam uma única superfície).
+`cstype bspline` + `deg 3 3` + `surf` superfície bicúbica B-Spline (um único `surf` com a matriz
+inteira de 4 × 4 até 20 × 20; o tamanho vem de `parm u` e `parm v`, com pontos = nós − grau − 1).
 As cores RGB ficam no `.mtl` de mesmo nome.
 
 | Arquivo | O que testa |
@@ -29,6 +35,10 @@ As cores RGB ficam no `.mtl` de mesmo nome.
 | `rua.obj` | Cena para perspectiva: 8 prédios (paralelepípedos) dos dois lados de uma rua que se afasta em profundidade. Em perspectiva as faixas convergem para um ponto de fuga e os prédios distantes encolhem; girando a window em Y vira perspectiva de dois pontos. |
 | `superficie.obj` | Superfície bicúbica de Bézier com **6 retalhos** (2 × 3), um tecido ondulado. Retalhos vizinhos compartilham a borda e os pontos dos dois lados estão alinhados, então a junção é suave. De frente parece uma grade levemente curva; gire a window para ver as ondas. |
 | `vaso.obj` | Vaso de revolução feito com **4 retalhos** de Bézier, um para cada 90° do contorno, fechando a volta. Fica bem em perspectiva e girando a window. |
+| `bspline_3retalhos.obj` | Superfície B-Spline com matriz 4 × 6, que gera **3 retalhos**. |
+| `bspline_montanha.obj` | Superfície B-Spline com matriz 8 × 8 (25 retalhos): uma elevação no centro. Gire a window para ver a forma. |
+| `bspline_20x20.obj` | Superfície B-Spline na dimensão máxima, 20 × 20 (289 retalhos). |
+| `cubo_especificacao.obj` | Cubo do exemplo da especificação OBJ: coordenadas de 0 a 2 e um grupo `g` por face. Vira um único `Objeto3D`; use **Enquadrar** para enxergá-lo. |
 | `blender_cubo.obj` | Formato exatamente como o Blender exporta: cabeçalho, `vt`/`vn`, `s off`, faces `f v/vt/vn`, `.mtl` completo (`Ns`, `Ka`, `Kd`, ...) e círculo exportado como uma aresta `l` por linha. O `Cube` (6 faces) e o `Circle` (12 arestas) viram `Objeto3D`; o `Plane` (uma face) vira um polígono preenchido. |
 | `sem_mtl.obj` | Sem `.mtl` (cor padrão), `usemtl` inexistente, índices negativos, `f` preenchido, `l` fechada repetindo o primeiro índice, grupo `g`, blocos só com vértices e nomes com espaço. |
 

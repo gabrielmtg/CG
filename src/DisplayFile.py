@@ -117,6 +117,12 @@ class DisplayFile:
         self.window.set_distancia_cop(d)
         self._window_mudou()
 
+    def enquadrar(self):
+        pontos = [p for obj in self.objects.values() for p in obj.get_points()]
+        if pontos:
+            self.window.enquadrar(pontos)
+            self._window_mudou()
+
     def resetar_window(self):
         self.window.resetar()
         self._window_mudou()

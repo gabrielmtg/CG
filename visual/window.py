@@ -9,7 +9,8 @@ from src.ObjWireframe import ObjWireframe
 from src.ObjCurva import ObjCurva
 from src.ObjBSpline import ObjBSpline
 from src.Objeto3D import Objeto3D
-from src.ObjSuperficie import ObjSuperficie
+from src.ObjSuperficieBezier import ObjSuperficieBezier
+from src.ObjSuperficieBSpline import ObjSuperficieBSpline
 from src.DisplayFile import DisplayFile
 from src.Viewport import Viewport
 from src.Window import Window
@@ -30,9 +31,20 @@ DISTANCIAS_COP = (("Grande angular", 250), ("Normal", 1000), ("Teleobjetiva", 50
 
 COR_PADRAO = "#000000"
 COR_RGB_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
-TIPO_SUPERFICIE = "Superfície (Bézier)"
+TIPO_SUPERFICIE_BEZIER = "Superfície (Bézier)"
+TIPO_SUPERFICIE_BSPLINE = "Superfície (B-Spline)"
 TIPOS_DISPONIVEIS = ["Ponto", "Reta", "Wireframe", "Curva (Bézier)", "Curva (B-Spline)", "Objeto 3D (Arame)",
-                     TIPO_SUPERFICIE]
+                     TIPO_SUPERFICIE_BEZIER, TIPO_SUPERFICIE_BSPLINE]
+AJUDA_SUPERFICIE = {
+    TIPO_SUPERFICIE_BEZIER: (
+        "Linhas da matriz separadas por ';' (pode quebrar a linha). Cada bloco 4 × 4 é um retalho:\n"
+        "4 linhas × 4 pontos = 1 retalho, 4 × 12 = 3 retalhos lado a lado, 8 × 4 = 2 empilhados.\n"
+        "Pontos iguais em retalhos vizinhos viram o mesmo ponto de controle (continuidade C0)."),
+    TIPO_SUPERFICIE_BSPLINE: (
+        "Linhas da matriz separadas por ';' (pode quebrar a linha). Qualquer matriz de 4 × 4 até 20 × 20.\n"
+        "A matriz é percorrida em submatrizes 4 × 4 que deslizam de um em um: L × C pontos geram\n"
+        "(L - 3) × (C - 3) retalhos, com continuidade C2. Desenho por forward differences."),
+}
 EIXOS = ["X", "Y", "Z"]
 
 REPEAT_DELAY_MS = 400
@@ -106,6 +118,18 @@ def exemplo_superficie(retalhos: int) -> str:
     return "\n".join(linhas_texto)
 
 
+def exemplo_bspline(linhas: int, colunas: int) -> str:
+    linhas_texto = []
+    for i in range(linhas):
+        pontos = []
+        for j in range(colunas):
+            u, v = i / (linhas - 1), j / (colunas - 1)
+            z = 260 * math.sin(math.pi * u) * math.sin(math.pi * v) ** 2 * math.cos(2 * math.pi * v)
+            pontos.append(f"({round(200 + 600 * v)},{round(250 + 500 * u)},{round(z)})")
+        linhas_texto.append(",".join(pontos) + ";")
+    return "\n".join(linhas_texto)
+
+
 def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.Combobox):
     janela = tk.Toplevel(root)
     janela.title("Inserir Objeto")
@@ -166,26 +190,33 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
 
     superficie_frame = ttk.LabelFrame(janela, text="Pontos de controle da superfície", padding=8)
     superficie_frame.grid(row=8, column=0, columnspan=2, padx=5, pady=5, sticky="we")
-    ttk.Label(superficie_frame, foreground="gray", justify="left", text=(
-        "Linhas da matriz separadas por ';' (pode quebrar a linha). Cada bloco 4 × 4 é um retalho:\n"
-        "4 linhas × 4 pontos = 1 retalho, 4 × 12 = 3 retalhos lado a lado, 8 × 4 = 2 empilhados.\n"
-        "Pontos iguais em retalhos vizinhos viram o mesmo ponto de controle (continuidade C0).")
-    ).grid(row=0, column=0, columnspan=3, sticky="w")
+    superficie_ajuda = ttk.Label(superficie_frame, foreground="gray", justify="left")
+    superficie_ajuda.grid(row=0, column=0, columnspan=2, sticky="w")
     superficie_texto = tk.Text(superficie_frame, width=78, height=8, font="TkFixedFont", wrap="none")
-    superficie_texto.grid(row=1, column=0, columnspan=2, pady=5)
+    superficie_texto.grid(row=1, column=0, pady=(5, 0))
+    rolagem_y = ttk.Scrollbar(superficie_frame, orient="vertical", command=superficie_texto.yview)
+    rolagem_y.grid(row=1, column=1, sticky="ns", pady=(5, 0))
     rolagem_x = ttk.Scrollbar(superficie_frame, orient="horizontal", command=superficie_texto.xview)
-    rolagem_x.grid(row=2, column=0, columnspan=2, sticky="we")
-    superficie_texto.config(xscrollcommand=rolagem_x.set)
+    rolagem_x.grid(row=2, column=0, sticky="we")
+    superficie_texto.config(xscrollcommand=rolagem_x.set, yscrollcommand=rolagem_y.set)
 
-    def preencher_exemplo(retalhos):
+    exemplos_por_tipo = {
+        TIPO_SUPERFICIE_BEZIER: (("Exemplo: 1 retalho", exemplo_superficie(1)),
+                                 ("Exemplo: 3 retalhos", exemplo_superficie(3))),
+        TIPO_SUPERFICIE_BSPLINE: (("Exemplo: 4 × 6 (3 retalhos)", exemplo_bspline(4, 6)),
+                                  ("Exemplo: 8 × 8 (25 retalhos)", exemplo_bspline(8, 8))),
+    }
+    textos_de_exemplo = [texto for exemplos in exemplos_por_tipo.values() for _, texto in exemplos]
+
+    def preencher_exemplo(texto):
         superficie_texto.delete("1.0", "end")
-        superficie_texto.insert("1.0", exemplo_superficie(retalhos))
+        superficie_texto.insert("1.0", texto)
 
     exemplos = ttk.Frame(superficie_frame)
     exemplos.grid(row=3, column=0, columnspan=2, sticky="w", pady=(5, 0))
-    ttk.Button(exemplos, text="Exemplo: 1 retalho", command=lambda: preencher_exemplo(1)).pack(side="left")
-    ttk.Button(exemplos, text="Exemplo: 3 retalhos", command=lambda: preencher_exemplo(3)).pack(side="left", padx=5)
-    preencher_exemplo(1)
+    botoes_exemplo = [ttk.Button(exemplos), ttk.Button(exemplos)]
+    for botao in botoes_exemplo:
+        botao.pack(side="left", padx=(0, 5))
 
     def atualizar_campos_tipo(event=None):
         tipo = tipo_combo.get()
@@ -195,11 +226,17 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
             preenchido_var.set(False)
             preenchido_check.config(state="disabled")
         arestas_entry.config(state="normal" if tipo == "Objeto 3D (Arame)" else "disabled")
-        coords_entry.config(state="disabled" if tipo == TIPO_SUPERFICIE else "normal")
-        if tipo == TIPO_SUPERFICIE:
-            superficie_frame.grid()
-        else:
+        coords_entry.config(state="disabled" if tipo in exemplos_por_tipo else "normal")
+        if tipo not in exemplos_por_tipo:
             superficie_frame.grid_remove()
+            return
+        superficie_frame.grid()
+        superficie_ajuda.config(text=AJUDA_SUPERFICIE[tipo])
+        for botao, (rotulo, texto) in zip(botoes_exemplo, exemplos_por_tipo[tipo]):
+            botao.config(text=rotulo, command=lambda t=texto: preencher_exemplo(t))
+        atual = superficie_texto.get("1.0", "end").strip()
+        if not atual or atual in textos_de_exemplo:
+            preencher_exemplo(exemplos_por_tipo[tipo][0][1])
 
     tipo_combo.bind("<<ComboboxSelected>>", atualizar_campos_tipo)
     atualizar_campos_tipo()
@@ -222,7 +259,7 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
             messagebox.showerror("Erro", "Cor inválida. Use o formato RGB hexadecimal #RRGGBB.")
             return
 
-        if tipo == TIPO_SUPERFICIE:
+        if tipo in exemplos_por_tipo:
             try:
                 matriz = parse_matriz_pontos(superficie_texto.get("1.0", "end"))
             except Exception:
@@ -230,7 +267,8 @@ def novo_objeto_dialog(root: Tk, display_file: DisplayFile, combo_objetos: ttk.C
                                              "(x,y,z),... com as linhas da matriz separadas por ';'.")
                 return
             try:
-                obj = ObjSuperficie.de_matriz(display_file.canvas, nome, cor, matriz)
+                classe = ObjSuperficieBezier if tipo == TIPO_SUPERFICIE_BEZIER else ObjSuperficieBSpline
+                obj = classe.de_matriz(display_file.canvas, nome, cor, matriz)
             except ValueError as erro:
                 messagebox.showerror("Erro", str(erro))
                 return
@@ -540,6 +578,9 @@ def bind_navegacao_mouse(display_file: DisplayFile):
 
 
 def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
+    def passo():
+        return PASSO_MOVIMENTO * display_file.window.escala_cena
+
     main_section = ttk.Frame(root, padding=20)
     main_section.pack(side="left", fill="y")
     ttk.Label(main_section, text="Menu de Funções").pack(side="top")
@@ -591,7 +632,8 @@ def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
     log_min, log_max = math.log10(DISTANCIA_COP_MIN), math.log10(DISTANCIA_COP_MAX)
     cop_escala = ttk.Scale(cop_section, from_=log_min, to=log_max, orient="horizontal", length=260,
                            value=math.log10(display_file.window.distancia_cop),
-                           command=lambda valor: display_file.set_distancia_cop(round(10 ** float(valor))))
+                           command=lambda valor: display_file.set_distancia_cop(
+                               round(10 ** float(valor)) * display_file.window.escala_cena))
     cop_escala.grid(row=1, column=0, columnspan=3, pady=2)
     for coluna, (rotulo, distancia) in enumerate(DISTANCIAS_COP):
         ttk.Button(cop_section, text=rotulo,
@@ -628,19 +670,22 @@ def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
 
     btn_subir = ttk.Button(camera_section, text="Subir")
     btn_subir.grid(row=2, column=1)
-    bind_hold(btn_subir, lambda: display_file.pan(0, PASSO_MOVIMENTO))
+    bind_hold(btn_subir, lambda: display_file.pan(0, passo()))
 
     btn_descer = ttk.Button(camera_section, text="Descer")
     btn_descer.grid(row=4, column=1)
-    bind_hold(btn_descer, lambda: display_file.pan(0, -PASSO_MOVIMENTO))
+    bind_hold(btn_descer, lambda: display_file.pan(0, -passo()))
 
     btn_cam_esq = ttk.Button(camera_section, text="Ir Esq.")
     btn_cam_esq.grid(row=3, column=0)
-    bind_hold(btn_cam_esq, lambda: display_file.pan(-PASSO_MOVIMENTO, 0))
+    bind_hold(btn_cam_esq, lambda: display_file.pan(-passo(), 0))
+
+    ttk.Button(camera_section, text="Enquadrar",
+               command=display_file.enquadrar).grid(row=3, column=1, padx=2)
 
     btn_cam_dir = ttk.Button(camera_section, text="Ir Dir.")
     btn_cam_dir.grid(row=3, column=2)
-    bind_hold(btn_cam_dir, lambda: display_file.pan(PASSO_MOVIMENTO, 0))
+    bind_hold(btn_cam_dir, lambda: display_file.pan(passo(), 0))
 
     ttk.Label(camera_section, text="Rotação da Window (eixos da window)").grid(
         row=5, column=0, columnspan=3, pady=(15, 5))
@@ -694,19 +739,19 @@ def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
 
     btn_cima = ttk.Button(actions_section, text="cima")
     btn_cima.grid(row=1, column=1)
-    bind_hold(btn_cima, lambda: mover(0, PASSO_MOVIMENTO))
+    bind_hold(btn_cima, lambda: mover(0, passo()))
 
     btn_baixo = ttk.Button(actions_section, text="baixo")
     btn_baixo.grid(row=3, column=1)
-    bind_hold(btn_baixo, lambda: mover(0, -PASSO_MOVIMENTO))
+    bind_hold(btn_baixo, lambda: mover(0, -passo()))
 
     btn_esquerda = ttk.Button(actions_section, text="esquerda")
     btn_esquerda.grid(row=2, column=0)
-    bind_hold(btn_esquerda, lambda: mover(-PASSO_MOVIMENTO, 0))
+    bind_hold(btn_esquerda, lambda: mover(-passo(), 0))
 
     btn_direita = ttk.Button(actions_section, text="direita")
     btn_direita.grid(row=2, column=2)
-    bind_hold(btn_direita, lambda: mover(PASSO_MOVIMENTO, 0))
+    bind_hold(btn_direita, lambda: mover(passo(), 0))
 
     pontos_section = ttk.Frame(main_section, padding=10)
     ttk.Label(pontos_section, text="Deformar Objeto (Pontos)").grid(row=0, column=0, columnspan=3, pady=5)
@@ -722,19 +767,19 @@ def functions_menu(root: Tk, display_file: DisplayFile) -> ttk.Combobox:
 
     btn_pt_cima = ttk.Button(pontos_section, text="Cima")
     btn_pt_cima.grid(row=2, column=1)
-    bind_hold(btn_pt_cima, lambda: manipular_ponto(0, PASSO_MOVIMENTO))
+    bind_hold(btn_pt_cima, lambda: manipular_ponto(0, passo()))
 
     btn_pt_baixo = ttk.Button(pontos_section, text="Baixo")
     btn_pt_baixo.grid(row=4, column=1)
-    bind_hold(btn_pt_baixo, lambda: manipular_ponto(0, -PASSO_MOVIMENTO))
+    bind_hold(btn_pt_baixo, lambda: manipular_ponto(0, -passo()))
 
     btn_pt_esq = ttk.Button(pontos_section, text="Esq.")
     btn_pt_esq.grid(row=3, column=0)
-    bind_hold(btn_pt_esq, lambda: manipular_ponto(-PASSO_MOVIMENTO, 0))
+    bind_hold(btn_pt_esq, lambda: manipular_ponto(-passo(), 0))
 
     btn_pt_dir = ttk.Button(pontos_section, text="Dir.")
     btn_pt_dir.grid(row=3, column=2)
-    bind_hold(btn_pt_dir, lambda: manipular_ponto(PASSO_MOVIMENTO, 0))
+    bind_hold(btn_pt_dir, lambda: manipular_ponto(passo(), 0))
 
     def atualizar_visibilidade(event=None):
         nome = combo_objetos.get()
